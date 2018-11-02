@@ -14,7 +14,7 @@ case class CompilerFlecha(AST: AST) {
 
   def restartState = ""
 
-  def compileAst(ast: AST) : MamarrachoProgram = {
+  def compileAst(ast: AST)  = {
     ast match {
       case NumberAST(value) => ""
       case LowerIdAST(value) => ""
