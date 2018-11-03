@@ -1,6 +1,6 @@
 import ast._
 
-case class CompilerFlecha(AST: AST) {
+case class FlechaCompiler(AST: AST) {
 
   type MamarrachoProgram = String
 
