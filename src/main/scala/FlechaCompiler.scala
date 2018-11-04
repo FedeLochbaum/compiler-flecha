@@ -62,30 +62,50 @@ case class FlechaCompiler(AST: AST) {
   def compile : MamarrachoProgram = {
     restartState
     AST match {
-      case ProgramAST(defs) => defs.flatMap(ast => compileAst(ast)).toString()
+      case ProgramAST(defs) => defs.map(ast => compileAst(ast, newReg)).mkString
       case _                 => error()
     }
   }
 
-  def compileAst(ast: AST)  = {
+  def compileAst(ast: AST, reg: Int) :String = {
     ast match {
-      case DefAST(name, expr) => ""
-      case CharAST(value) => compileChar(value)
-      case NumberAST(value) => ""
-      case LowerIdAST(value) => ""
-      case UpperIdAST(value) => ""
+      case DefAST(name, expr)                               => compileAst(expr, reg) + mov_reg("$" + s"G_$name", "$" + s"r$reg")
+      case CharAST(value)                                   => compileChar(value, reg)
+      case NumberAST(value)                                 => compileInt(value, reg)
+      case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
+      case LowerIdAST(value)                                => ""
+      case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
-      case CaseAST(internalExpr, caseBranchs) => ""
-      case LetAST(name, internalExpr, externalExp) => ""
-      case LambdaAST(id, externalExp) => ""
-      case UnaryWithParenAST(expr) => ""
-      case AppExprAST(atomicOp, appExprAST) => ""
+      case CaseAST(internalExpr, caseBranchs)               => ""
+      case LetAST(name, internalExpr, externalExp)          => ""
+      case LambdaAST(id, externalExp)                       => ""
+      case UnaryWithParenAST(expr)                          => ""
+      case _                                                => error()
+    }
+  }
+
+  def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
+    val compiledExp = compileAst(appExprAST, reg)
+    atomicOp match {
+      case LowerIdAST(value)                => compiledExp + compileLowerIdApp(value, reg+1)
+      case UpperIdAST(value)                => compiledExp + ""
+      case AppExprAST(atomic, expr)         => compiledExp + compileApplication(atomic, expr, reg+1)
       case _                                => error()
     }
   }
 
-  def compileChar(char: Char) = {
-    val reg = newReg
+  def compileLowerIdApp(funcName: String, reg: Int) = {
+    val prevRegStr = "$" + s"r${reg-1}"
+    val regStr = "$" + s"r$reg"
+
+    funcName match {
+      case "unsafePrintChar" => load(regStr, prevRegStr, 1) + print_char(regStr)
+      case "unsafePrintInt"  => load(regStr, prevRegStr, 1) + print_int(regStr)
+      case  _                => error() // TODO: Update it
+    }
+  }
+
+  def compileChar(char: Char, reg: Int) = {
     val regStr = "$" + s"r$reg"
 
     alloc(regStr, 2) +
@@ -95,11 +115,26 @@ case class FlechaCompiler(AST: AST) {
     store(regStr, 1, temp)
   }
 
-  //////////////////////////////////// MAMARRACHO AUX FUNCTIONS ///////////////////////////////////////////////
-  def alloc(reg: String, slots: Int) = s"alloc($reg, $slots) "
-  def mov_int(reg: String, tag: Int) = s"mov_int($reg, $tag) "
-  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2) "
+  def compileInt(int: Int, reg: Int) = {
+    val regStr = "$" + s"r$reg"
 
+    alloc(regStr, 2) +
+    mov_int(temp, getTag("Int")) +
+    store(regStr, 0, temp) +
+    mov_int(temp, int) +
+    store(regStr, 1, temp)
+  }
+
+  //////////////////////////////////// MAMARRACHO AUX FUNCTIONS ///////////////////////////////////////////////
+  def alloc(reg: String, slots: Int)                = s"alloc($reg, $slots) "
+  def mov_int(reg: String, tag: Int)                = s"mov_int($reg, $tag) "
+  def print_char(reg: String)                       = s"print_char($reg) "
+  def print_int(reg: String)                        = s"print($reg) "
+  def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2) "
+  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2) "
+  def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index) "
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def error(msg: String = "") = throw new FlechaCompileError(msg)
 }

@@ -12,7 +12,7 @@ class CompilerTest  extends FunSpec with Matchers {
     testCases.foreach( testNumber =>
       it(s"Test $testNumber") {
         val flechaProgram = Source.fromFile(s"${directionCases}test$testNumber.fl").mkString
-        val expectedResult = Source.fromFile(s"${directionCases}test$testNumber.expected").mkString
+        val expectedResult = Source.fromFile(s"${directionCases}test$testNumber.expected").getLines().mkString
 
         FlechaRunner.run(flechaProgram) should equal (expectedResult)
       }
