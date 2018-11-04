@@ -13,26 +13,34 @@ case class FlechaCompiler(AST: AST) {
     "Nil"     -> 6,
     "Cons"    -> 7,
   )
-  var tagMap = initialTagMap
 
+  var tagMap = initialTagMap
+  var env : Map[String, Binding] = Map()
   var count = 0
   var nextTag = 7
 
   def newReg = { count = count + 1 ; count }
   def newTag = { nextTag = nextTag + 1 ; nextTag }
 
-  def compile : MamarrachoProgram = {
-    restartState
-    AST match {
-      case ProgramAST(defs) => defs.flatMap(ast => compileAst(ast)).toString()
-      case _                 => error()
-    }
-  }
-
   def restartState = {
     count = 0
     nextTag = 7
     tagMap = initialTagMap
+    initialEnv
+  }
+
+  def initialEnv ={
+    AST match {
+      case ProgramAST(defs) => defs.foreach(ast => intialRegister(ast))
+      case _                 => error()
+    }
+  }
+
+  def intialRegister(ast: AST) = {
+    ast match {
+      case DefAST(name, expr) =>
+        env = env.+((name, BRegister(s"G_$name")))
+    }
   }
 
   def createTag(string: String) = {
@@ -46,13 +54,24 @@ case class FlechaCompiler(AST: AST) {
     if (tag.isEmpty) { createTag(string) } else tag.get
   }
 
+  ///////////////////////////////////// FINISH COMPILER STATE FUNCTIONALITY //////////////////////////////////////
+
+
+  def compile : MamarrachoProgram = {
+    restartState
+    AST match {
+      case ProgramAST(defs) => defs.flatMap(ast => compileAst(ast)).toString()
+      case _                 => error()
+    }
+  }
+
   def compileAst(ast: AST)  = {
     ast match {
+      case DefAST(name, expr) => ""
       case NumberAST(value) => ""
       case LowerIdAST(value) => ""
       case UpperIdAST(value) => ""
       case CharAST(value) => ""
-      case DefAST(name, expr) => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs) => ""
       case LetAST(name, internalExpr, externalExp) => ""
