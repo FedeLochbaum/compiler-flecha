@@ -10,7 +10,7 @@ object FlechaRunner {
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(mamarrachoProgram)
     bw.close()
-    "src/utils/./mamarracho.exe src/utils/mamarrachoProgram.m" !!
+    ("src/utils/./mamarracho.exe src/utils/mamarrachoProgram.m" !!).replaceAll("\\s+$", "")
   }
 
 }
