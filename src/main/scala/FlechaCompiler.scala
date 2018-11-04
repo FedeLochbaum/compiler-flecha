@@ -4,6 +4,8 @@ case class FlechaCompiler(AST: AST) {
 
   type MamarrachoProgram = String
 
+  val temp = "$" + "t"
+
   val initialTagMap = Map(
     "Int"     -> 1,
     "Char"    -> 2,
@@ -39,7 +41,7 @@ case class FlechaCompiler(AST: AST) {
   def intialRegister(ast: AST) = {
     ast match {
       case DefAST(name, expr) =>
-        env = env.+((name, BRegister(s"G_$name")))
+        env = env.+((name, BRegister("$" + s"G_$name")))
     }
   }
 
@@ -68,10 +70,10 @@ case class FlechaCompiler(AST: AST) {
   def compileAst(ast: AST)  = {
     ast match {
       case DefAST(name, expr) => ""
+      case CharAST(value) => compileChar(value)
       case NumberAST(value) => ""
       case LowerIdAST(value) => ""
       case UpperIdAST(value) => ""
-      case CharAST(value) => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs) => ""
       case LetAST(name, internalExpr, externalExp) => ""
@@ -80,6 +82,17 @@ case class FlechaCompiler(AST: AST) {
       case AppExprAST(atomicOp, appExprAST) => ""
       case _                                => error()
     }
+  }
+
+  def compileChar(char: Char) = {
+    val reg = newReg
+    val regStr = "$" + s"r$reg"
+
+    s"alloc($regStr, 2) " +
+    s"mov_int($temp, ${getTag("Char")}) " +
+    s"store($regStr, 0, $temp) " +
+    s"mov_int($temp, ${char.toByte}) " +
+    s"store($regStr, 1, $temp) "
   }
 
   def error(msg: String = "") = throw new FlechaCompileError(msg)
