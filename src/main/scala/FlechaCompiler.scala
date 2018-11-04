@@ -41,7 +41,7 @@ case class FlechaCompiler(AST: AST) {
   def intialRegister(ast: AST) = {
     ast match {
       case DefAST(name, expr) =>
-        env = env.+((name, BRegister("$" + s"G_$name")))
+        env = env.+((name, BRegister("$" + s"G_$name"))) // name -> $G_name
     }
   }
 
@@ -62,18 +62,18 @@ case class FlechaCompiler(AST: AST) {
   def compile : MamarrachoProgram = {
     restartState
     AST match {
-      case ProgramAST(defs) => defs.map(ast => compileAst(ast, newReg)).mkString
+      case ProgramAST(defs) => defs.reverse.map(ast => compileAst(ast, newReg)).mkString
       case _                 => error()
     }
   }
 
   def compileAst(ast: AST, reg: Int) :String = {
     ast match {
-      case DefAST(name, expr)                               => compileAst(expr, reg) + mov_reg("$" + s"G_$name", "$" + s"r$reg")
+      case DefAST(name, expr)                               => compileDef(name, expr, reg)
       case CharAST(value)                                   => compileChar(value, reg)
       case NumberAST(value)                                 => compileInt(value, reg)
       case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
-      case LowerIdAST(value)                                => ""
+      case LowerIdAST(value)                                => compileVariable(value, reg)
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
@@ -82,6 +82,27 @@ case class FlechaCompiler(AST: AST) {
       case UnaryWithParenAST(expr)                          => ""
       case _                                                => error()
     }
+  }
+
+  def compileDef(defName: String, subExpr: AST, reg: Int) = {
+    val code = compileAst(subExpr, reg)
+    val defRegName = s"G_$defName"
+    env = env.+((defName, BEnclosed(reg)))
+
+    code + mov_reg("$" + defRegName, "$" + s"r$reg")
+  }
+
+  def compileVariable(variableName: String, reg: Int) = {
+    val defRegName = "$" + s"G_$variableName"
+    val regStr = "$" + s"r$reg"
+
+    if (env.get(variableName).nonEmpty) {
+      env(variableName) match {
+        case BEnclosed(reg2)     => mov_reg(regStr, defRegName)
+        case BRegister(register) => ""
+        case _                   => ""
+      }
+    } else ""
   }
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
