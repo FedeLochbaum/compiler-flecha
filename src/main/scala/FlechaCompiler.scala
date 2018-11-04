@@ -88,12 +88,18 @@ case class FlechaCompiler(AST: AST) {
     val reg = newReg
     val regStr = "$" + s"r$reg"
 
-    s"alloc($regStr, 2) " +
-    s"mov_int($temp, ${getTag("Char")}) " +
-    s"store($regStr, 0, $temp) " +
-    s"mov_int($temp, ${char.toByte}) " +
-    s"store($regStr, 1, $temp) "
+    alloc(regStr, 2) +
+    mov_int(temp, getTag("Char")) +
+    store(regStr, 0, temp) +
+    mov_int(temp, char.toByte.toInt) +
+    store(regStr, 1, temp)
   }
+
+  //////////////////////////////////// MAMARRACHO AUX FUNCTIONS ///////////////////////////////////////////////
+  def alloc(reg: String, slots: Int) = s"alloc($reg, $slots) "
+  def mov_int(reg: String, tag: Int) = s"mov_int($reg, $tag) "
+  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2) "
+
 
   def error(msg: String = "") = throw new FlechaCompileError(msg)
 }
