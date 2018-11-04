@@ -1,1 +1,1 @@
-alloc($r2, 2) mov_int($t, 2) store($r2, 0, $t) mov_int($t, 65) store($r2, 1, $t) load($r3, $r2, 1) print_char($r3) mov_reg($G_main, $r1) 
+alloc($r1, 2) mov_int($t, 1) store($r1, 0, $t) mov_int($t, 42) store($r1, 1, $t) load($r2, $r1, 1) print($r2) mov_reg($G_main, $r1) 
