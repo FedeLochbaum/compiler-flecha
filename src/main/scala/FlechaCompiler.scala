@@ -75,13 +75,18 @@ case class FlechaCompiler(AST: AST) {
       case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
       case LowerIdAST(value)                                => compileVariable(value, reg)
       case LetAST(name, internalExpr, externalExp)          => compileLet(name, internalExpr, externalExp, reg)
+      case LambdaAST(name, externalExp)                     => compileLambda(name, externalExp, reg)
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
-      case LambdaAST(id, externalExp)                       => ""
       case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case _                                                => error()
     }
+  }
+
+  def compileLambda(name: String, externalExp: AST, reg: Int) = {
+    // TODO: se aplica a reg-1
+    "bla bla"
   }
 
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
@@ -122,7 +127,7 @@ case class FlechaCompiler(AST: AST) {
       case LowerIdAST(value)                => compiledExp + compileLowerIdApp(value, reg+1)
       case UpperIdAST(value)                => compiledExp + ""
       case AppExprAST(atomic, expr)         => compiledExp + compileApplication(atomic, expr, reg+1)
-      case _                                => error()
+      case _                                => compiledExp + compileAst(atomicOp, reg+1)
     }
   }
 
