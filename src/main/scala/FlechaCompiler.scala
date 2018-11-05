@@ -89,9 +89,10 @@ case class FlechaCompiler(AST: AST) {
     val currentVal = env.get(name)
 
     env = env.+((name, BEnclosed(reg+1)))
-    val e2 = compileAst(externalExp, reg)
+
+    val e2 = compileAst(externalExp, reg+2)
     if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
-    e1 + e2
+    e1 + e2 + mov_reg("$" + s"r$reg", "$" + s"r${reg+2}")
   }
 
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
