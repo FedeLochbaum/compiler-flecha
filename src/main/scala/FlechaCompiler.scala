@@ -79,16 +79,18 @@ case class FlechaCompiler(AST: AST) {
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
       case LambdaAST(id, externalExp)                       => ""
-      case UnaryWithParenAST(expr)                          => ""
+      case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case _                                                => error()
     }
   }
 
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
     val e1 = compileAst(internalExpr, reg+1)
+    val currentVal = env.get(name)
+
     env = env.+((name, BEnclosed(reg+1)))
     val e2 = compileAst(externalExp, reg)
-    env = env.-(name)
+    if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
     e1 + e2
   }
 
