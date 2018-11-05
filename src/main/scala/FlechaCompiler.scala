@@ -18,15 +18,19 @@ case class FlechaCompiler(AST: AST) {
 
   var tagMap = initialTagMap
   var env : Map[String, Binding] = Map()
+
+  var rtn = 0
   var count = 0
   var nextTag = 7
 
+  def nextRtn= { rtn = rtn + 1 ; rtn }
   def newReg = { count = count + 1 ; count }
   def newTag = { nextTag = nextTag + 1 ; nextTag }
 
   def restartState = {
     count = 0
     nextTag = 7
+    rtn = 0
     tagMap = initialTagMap
     initialEnv
   }
@@ -84,9 +88,18 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  // TODO: el codigo de aplicacion sera diferente
+  // TODO: se aplica a reg-1
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
-    // TODO: se aplica a reg-1
-    "bla bla"
+    val regStr = "$" + s"r$reg"
+    val countFV = 2//countOfFreeValues(externalExp)
+    alloc(regStr, 2 + countFV) +
+    mov_int(temp, getTag("Closure")) +
+    store(regStr, 0, temp) +
+    move_label(temp, s"rtn_$nextRtn") +
+    store(regStr, 1, temp)
+    // TODO:
+
   }
 
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
@@ -170,6 +183,7 @@ case class FlechaCompiler(AST: AST) {
   def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2)\n"
   def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2)\n"
   def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index)\n"
+  def move_label(reg: String, label: String)        = s"mov_label($reg, $label)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
