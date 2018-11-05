@@ -74,14 +74,22 @@ case class FlechaCompiler(AST: AST) {
       case NumberAST(value)                                 => compileInt(value, reg)
       case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
       case LowerIdAST(value)                                => compileVariable(value, reg)
+      case LetAST(name, internalExpr, externalExp)          => compileLet(name, internalExpr, externalExp, reg)
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
-      case LetAST(name, internalExpr, externalExp)          => ""
       case LambdaAST(id, externalExp)                       => ""
       case UnaryWithParenAST(expr)                          => ""
       case _                                                => error()
     }
+  }
+
+  def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
+    val e1 = compileAst(internalExpr, reg+1)
+    env = env.+((name, BEnclosed(reg+1)))
+    val e2 = compileAst(externalExp, reg)
+    env = env.-(name)
+    e1 + e2
   }
 
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
@@ -98,7 +106,7 @@ case class FlechaCompiler(AST: AST) {
 
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
-        case BEnclosed(reg2)     => mov_reg(regStr, defRegName)
+        case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2") // defRegName
         case BRegister(register) => ""
         case _                   => ""
       }
@@ -147,13 +155,13 @@ case class FlechaCompiler(AST: AST) {
   }
 
   //////////////////////////////////// MAMARRACHO AUX FUNCTIONS ///////////////////////////////////////////////
-  def alloc(reg: String, slots: Int)                = s"alloc($reg, $slots) "
-  def mov_int(reg: String, tag: Int)                = s"mov_int($reg, $tag) "
-  def print_char(reg: String)                       = s"print_char($reg) "
-  def print_int(reg: String)                        = s"print($reg) "
-  def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2) "
-  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2) "
-  def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index) "
+  def alloc(reg: String, slots: Int)                = s"alloc($reg, $slots)\n"
+  def mov_int(reg: String, tag: Int)                = s"mov_int($reg, $tag)\n"
+  def print_char(reg: String)                       = s"print_char($reg)\n"
+  def print_int(reg: String)                        = s"print($reg)\n"
+  def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2)\n"
+  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2)\n"
+  def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
