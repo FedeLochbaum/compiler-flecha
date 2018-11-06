@@ -5,6 +5,8 @@ case class FlechaCompiler(AST: AST) {
   type MamarrachoProgram = String
 
   val temp = "$" + "t"
+  val fun  = "$" + "fun"
+  val arg  = "$" + "arg"
 
   val initialTagMap = Map(
     "Int"     -> 1,
@@ -38,7 +40,7 @@ case class FlechaCompiler(AST: AST) {
   def initialEnv ={
     AST match {
       case ProgramAST(defs) => defs.foreach(ast => intialRegister(ast))
-      case _                 => error()
+      case _                => error()
     }
   }
 
@@ -71,6 +73,23 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def freeValues(ast: AST, lambdaParam: String) = {
+    ast match {
+      case DefAST(name, expr)                               => List()
+      case CharAST(value)                                   => List()
+      case NumberAST(value)                                 => List()
+      case AppExprAST(atomicOp, appExprAST)                 => List()
+      case LowerIdAST(value)                                => List()
+      case LetAST(name, internalExpr, externalExp)          => List()
+      case LambdaAST(name, externalExp)                     => List()
+      case UpperIdAST(value)                                => List()
+      case CaseBranchAST(constructor, params, internalExpr) => List()
+      case CaseAST(internalExpr, caseBranchs)               => List()
+      case UnaryWithParenAST(expr)                          => List()
+      case _                                                => List()
+    }
+  }
+
   def compileAst(ast: AST, reg: Int) :String = {
     ast match {
       case DefAST(name, expr)                               => compileDef(name, expr, reg)
@@ -88,18 +107,24 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
-  // TODO: el codigo de aplicacion sera diferente
-  // TODO: se aplica a reg-1
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
-    val countFV = 2//countOfFreeValues(externalExp)
-    alloc(regStr, 2 + countFV) +
+    val countFV = freeValues(externalExp, name)
+    val routine = s"rtn_$nextRtn"
+
+    s"$routine: \n" +
+    mov_reg(fun, "@fun") +
+    mov_reg(arg, "@arg") +
+    alloc(regStr, 2 + countFV.size) +
     mov_int(temp, getTag("Closure")) +
     store(regStr, 0, temp) +
-    move_label(temp, s"rtn_$nextRtn") +
-    store(regStr, 1, temp)
-    // TODO:
-
+    mov_label(temp, routine) +
+    store(regStr, 1, temp) +
+    mov_reg(temp, arg) +
+    store(regStr, 2, temp) +
+    compileAst(externalExp, reg+1) + // compilo e
+    mov_reg("@res", regStr) +
+    ret()
   }
 
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
@@ -127,7 +152,7 @@ case class FlechaCompiler(AST: AST) {
 
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
-        case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2") // defRegName
+        case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2")
         case BRegister(register) => ""
         case _                   => ""
       }
@@ -137,10 +162,11 @@ case class FlechaCompiler(AST: AST) {
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     val compiledExp = compileAst(appExprAST, reg)
     atomicOp match {
-      case LowerIdAST(value)                => compiledExp + compileLowerIdApp(value, reg+1)
-      case UpperIdAST(value)                => compiledExp + ""
-      case AppExprAST(atomic, expr)         => compiledExp + compileApplication(atomic, expr, reg+1)
-      case _                                => compiledExp + compileAst(atomicOp, reg+1)
+      case LowerIdAST(value)                      => compiledExp + compileLowerIdApp(value, reg+1)
+      case UpperIdAST(value)                      => compiledExp + ""
+      case AppExprAST(atomic, expr)               => compiledExp + compileApplication(atomic, expr, reg+1)
+      case UnaryWithParenAST(LambdaAST(name, e2)) => compiledExp + compileAst(atomicOp, reg+1) // obtener el tag del lambda y moverlo a @fun, luego, mover reg a @arg y llamar a @fun
+      case _                                      => error()
     }
   }
 
@@ -151,7 +177,7 @@ case class FlechaCompiler(AST: AST) {
     funcName match {
       case "unsafePrintChar" => load(regStr, prevRegStr, 1) + print_char(regStr)
       case "unsafePrintInt"  => load(regStr, prevRegStr, 1) + print_int(regStr)
-      case  _                => error() // TODO: Update it
+      case  _                => error()
     }
   }
 
@@ -183,7 +209,8 @@ case class FlechaCompiler(AST: AST) {
   def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2)\n"
   def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2)\n"
   def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index)\n"
-  def move_label(reg: String, label: String)        = s"mov_label($reg, $label)\n"
+  def mov_label(reg: String, label: String)         = s"mov_label($reg, $label)\n"
+  def ret()                                         = "return()\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
