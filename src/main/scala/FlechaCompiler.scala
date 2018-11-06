@@ -165,7 +165,11 @@ case class FlechaCompiler(AST: AST) {
       case LowerIdAST(value)                      => compiledExp + compileLowerIdApp(value, reg+1)
       case UpperIdAST(value)                      => compiledExp + ""
       case AppExprAST(atomic, expr)               => compiledExp + compileApplication(atomic, expr, reg+1)
-      case UnaryWithParenAST(LambdaAST(name, e2)) => compiledExp + compileAst(atomicOp, reg+1) // obtener el tag del lambda y moverlo a @fun, luego, mover reg a @arg y llamar a @fun
+      case UnaryWithParenAST(LambdaAST(name, e2)) =>
+                                                    compiledExp + compileLambda(name, e2, reg+1) +
+                                                    load("@fun", "$" + s"r${reg+1}", 1) +
+                                                    mov_reg("@arg", "$" + s"r$reg") +
+                                                    call("@fun")
       case _                                      => error()
     }
   }
@@ -210,7 +214,8 @@ case class FlechaCompiler(AST: AST) {
   def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2)\n"
   def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index)\n"
   def mov_label(reg: String, label: String)         = s"mov_label($reg, $label)\n"
-  def ret()                                         = "return()\n"
+  def ret()                                         = s"return()\n"
+  def call(label: String)                           = s"call($label)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
