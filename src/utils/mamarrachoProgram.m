@@ -1,15 +1,16 @@
+main:
 alloc($r1, 2)
 mov_int($t, 1)
 store($r1, 0, $t)
 mov_int($t, 42)
 store($r1, 1, $t)
-rtn_1: 
+rtn1:
 mov_reg($fun, @fun)
 mov_reg($arg, @arg)
 alloc($r2, 2)
 mov_int($t, 3)
 store($r2, 0, $t)
-mov_label($t, rtn_1)
+mov_label($t, rtn1)
 store($r2, 1, $t)
 mov_reg($t, $arg)
 store($r2, 2, $t)

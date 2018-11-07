@@ -62,17 +62,6 @@ case class FlechaCompiler(AST: AST) {
     if (tag.isEmpty) { createTag(string) } else tag.get
   }
 
-  ///////////////////////////////////// FINISH COMPILER STATE FUNCTIONALITY //////////////////////////////////////
-
-
-  def compile : MamarrachoProgram = {
-    restartState
-    AST match {
-      case ProgramAST(defs) => defs.reverse.map(ast => compileAst(ast, newReg)).mkString
-      case _                 => error()
-    }
-  }
-
   def freeValues(ast: AST, lambdaParam: String) = {
     ast match {
       case DefAST(name, expr)                               => List()
@@ -90,9 +79,20 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  ///////////////////////////////////// FINISH COMPILER STATE FUNCTIONALITY //////////////////////////////////////
+
+
+  def compile : MamarrachoProgram = {
+    restartState
+    AST match {
+      case ProgramAST(defs) => defs.reverse.map(ast => compileAst(ast, newReg)).mkString
+      case _                 => error()
+    }
+  }
+
   def compileAst(ast: AST, reg: Int) :String = {
     ast match {
-      case DefAST(name, expr)                               => compileDef(name, expr, reg)
+      case DefAST(name, expr)                               => s"$name:\n" + compileDef(name, expr, reg)
       case CharAST(value)                                   => compileChar(value, reg)
       case NumberAST(value)                                 => compileInt(value, reg)
       case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
@@ -110,9 +110,9 @@ case class FlechaCompiler(AST: AST) {
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
     val countFV = freeValues(externalExp, name)
-    val routine = s"rtn_$nextRtn"   // nombre de la nueva rutina
+    val routine = s"rtn$nextRtn"   // nombre de la nueva rutina
 
-    s"$routine: \n" +
+    s"$routine:\n" +
     mov_reg(fun, "@fun") +    // muevo @fun a un registro local $fun
     mov_reg(arg, "@arg") +    // muevo @arg a un registro local $arg
     alloc(regStr, 2 + countFV.size) +  // alloc en reg (r) de 2 + cantidad de varaibles libres (aun no implementado)
@@ -219,6 +219,7 @@ case class FlechaCompiler(AST: AST) {
   def mov_label(reg: String, label: String)         = s"mov_label($reg, $label)\n"
   def ret()                                         = s"return()\n"
   def call(label: String)                           = s"call($label)\n"
+  def jump(label: String)                           = s"jump($label)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
