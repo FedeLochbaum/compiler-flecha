@@ -85,47 +85,74 @@ case class FlechaCompiler(AST: AST) {
   def compile : MamarrachoProgram = {
     restartState
     AST match {
-      case ProgramAST(defs) => defs.reverse.map(ast => compileAst(ast, newReg)).mkString
+      case ProgramAST(defs) => jump("main") + compileRoutinesDef(defs.reverse) + s"main:\n" + defs.reverse.map(ast => compileAst(ast, newReg)).mkString
       case _                 => error()
     }
   }
 
+  def compileRoutinesDef(asts: List[AST]) = {
+    val res = asts.map(ast => compileRoutines(ast)).mkString ; rtn = 0 ; res
+  }
+
+  def compileRoutines(ast: AST): String = {
+    ast match {
+      case LambdaAST(name, externalExp)                     => compileLambdaDefinition(name, externalExp, newReg)
+      case DefAST(_, expr)                                  => compileRoutines(expr)
+      case AppExprAST(atomicOp, appExprAST)                 => compileRoutines(atomicOp) + compileRoutines(appExprAST)
+      case LetAST(_, internalExpr, externalExp)             => compileRoutines(internalExpr) + compileRoutines(externalExp)
+      case CaseBranchAST(_, _, internalExpr)                => compileRoutines(internalExpr)
+      case CaseAST(internalExpr, caseBranchs)               => compileRoutines(internalExpr) + caseBranchs.map( ast => compileRoutines(ast))
+      case UnaryWithParenAST(expr)                          => compileRoutines(expr)
+      case _                                                => ""
+    }
+  }
+
+
+
   def compileAst(ast: AST, reg: Int) :String = {
     ast match {
-      case DefAST(name, expr)                               => s"$name:\n" + compileDef(name, expr, reg)
+      case DefAST(name, expr)                               => compileDef(name, expr, reg)
       case CharAST(value)                                   => compileChar(value, reg)
       case NumberAST(value)                                 => compileInt(value, reg)
       case AppExprAST(atomicOp, appExprAST)                 => compileApplication(atomicOp, appExprAST, reg)
       case LowerIdAST(value)                                => compileVariable(value, reg)
       case LetAST(name, internalExpr, externalExp)          => compileLet(name, internalExpr, externalExp, reg)
-      case LambdaAST(name, externalExp)                     => compileLambda(name, externalExp, reg)
+      case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
-      case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case _                                                => error()
     }
   }
 
-  def compileLambda(name: String, externalExp: AST, reg: Int) = {
+  def compileLambdaDefinition(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
-    val countFV = freeValues(externalExp, name)
-    val routine = s"rtn$nextRtn"   // nombre de la nueva rutina
+    val routine = s"rtn$nextRtn"
 
     s"$routine:\n" +
-    mov_reg(fun, "@fun") +    // muevo @fun a un registro local $fun
-    mov_reg(arg, "@arg") +    // muevo @arg a un registro local $arg
-    alloc(regStr, 2 + countFV.size) +  // alloc en reg (r) de 2 + cantidad de varaibles libres (aun no implementado)
-    mov_int(temp, getTag("Closure")) +  // muevo a temp el tag de closure
-    store(regStr, 0, temp) +            // muevo al indice 0 de r el tag del closure
-    mov_label(temp, routine) +                  // muevo el label de la rutina a temp
-    store(regStr, 1, temp) +            // muevo al indice 1 el nombre de la rutina
-    mov_reg(temp, arg) +                        // muevo a temp el valor del registro $arg
-    store(regStr, 2, temp) +             // muevo al indice 2 el valor del registro $arg
-    compileAst(externalExp, reg+1) + // compilo e
-    // aca deberia guardar en cada regStr_i el valor de las variables libres ?
-    mov_reg("@res", regStr) +    // paso el valor del registro r a @res
-    ret()                                // return de la rutina
+    mov_reg(fun, "@fun") +
+    mov_reg(arg, "@arg") +
+    mov_reg(regStr, arg) +
+    mov_reg("@res", regStr) +
+    ret()
+  }
+
+  def compileLambdaApp(name: String,  externalExp: AST, reg: Int, routine: String, compiledArg: String) = {
+    val regStr = "$" + s"r$reg"
+    val regOfArg = "$" + s"r${reg-1}"
+    val freeV = freeValues(externalExp, name)
+
+    alloc(regStr, 2 + freeV.size) +
+    mov_int(temp, getTag("Closure")) +
+    store(regStr, 0, temp) +
+    mov_label(temp, routine) +
+    store(regStr, 1, temp) +
+    compiledArg +
+    mov_reg("@fun", regStr) +
+    mov_reg("@arg", regOfArg) +
+    load("$" + s"r${reg+1}", "@fun", 1) +
+    icall("$" + s"r${reg+1}") +
+    mov_reg(regOfArg, "@res")
   }
 
 
@@ -135,12 +162,7 @@ case class FlechaCompiler(AST: AST) {
       case LowerIdAST(value)                      => compiledExp + compileLowerIdApp(value, reg+1)
       case UpperIdAST(value)                      => compiledExp + ""
       case AppExprAST(atomic, expr)               => compiledExp + compileApplication(atomic, expr, reg+1)
-      case UnaryWithParenAST(LambdaAST(name, e2)) =>
-        compiledExp + compileLambda(name, e2, reg+1) +             // compilo el argumento y el lambda
-          load("@fun", "$" + s"r${reg+1}", 1) + // paso a @fun el valor del indice 1 (el label) del registro r+1(donde quedo el valor de compilar el lambda )
-          mov_reg("@arg", "$" + s"r$reg") +             // paso a @arg el valor de registro reg, que es donde quedo el valor de compilar el argumento
-          call("@fun") +                                      //  llamo a @fun que tiene el label de la rutina del lambda
-          mov_reg(s"r$reg", "@res")                     // muevo a reg (pisando el del argumento) el valor de @res (es decir el valor del resultado del lambda)
+      case UnaryWithParenAST(LambdaAST(name, e2)) => compileLambdaApp(name, e2, reg+1, s"rtn$nextRtn", compiledExp)
       case _                                      => error()
     }
   }
@@ -219,6 +241,7 @@ case class FlechaCompiler(AST: AST) {
   def mov_label(reg: String, label: String)         = s"mov_label($reg, $label)\n"
   def ret()                                         = s"return()\n"
   def call(label: String)                           = s"call($label)\n"
+  def icall(reg: String)                            = s"icall($reg)\n"
   def jump(label: String)                           = s"jump($label)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
