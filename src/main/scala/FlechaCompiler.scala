@@ -21,7 +21,7 @@ case class FlechaCompiler(AST: AST) {
   var tagMap = initialTagMap
   var env : Map[String, Binding] = Map()
 
-  var rtn = 0
+  var rtn = -1
   var count = 0
   var nextTag = 7
 
@@ -32,7 +32,7 @@ case class FlechaCompiler(AST: AST) {
   def restartState = {
     count = 0
     nextTag = 7
-    rtn = 0
+    rtn = -1
     tagMap = initialTagMap
     initialEnv
   }
@@ -91,7 +91,7 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileRoutinesDef(asts: List[AST]) = {
-    val res = asts.map(ast => compileRoutines(ast)).mkString ; rtn = 0 ; res
+    val res = asts.map(ast => compileRoutines(ast)).mkString ; rtn = -1 ; res
   }
 
   def compileRoutines(ast: AST): String = {
@@ -130,6 +130,7 @@ case class FlechaCompiler(AST: AST) {
     val regStr = "$" + s"r$reg"
     val routine = s"rtn$nextRtn"
 
+    compileRoutines(externalExp) +
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
