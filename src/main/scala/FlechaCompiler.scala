@@ -121,6 +121,7 @@ case class FlechaCompiler(AST: AST) {
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
+      case LambdaAST(name, externalExp)                     => ""
       case _                                                => error()
     }
   }
