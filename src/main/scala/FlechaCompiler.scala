@@ -118,10 +118,10 @@ case class FlechaCompiler(AST: AST) {
       case LowerIdAST(value)                                => compileVariable(value, reg)
       case LetAST(name, internalExpr, externalExp)          => compileLet(name, internalExpr, externalExp, reg)
       case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
+      case LambdaAST(name, externalExp)                     => compileLambda(name, externalExp, reg)
       case UpperIdAST(value)                                => ""
       case CaseBranchAST(constructor, params, internalExpr) => ""
       case CaseAST(internalExpr, caseBranchs)               => ""
-      case LambdaAST(name, externalExp)                     => ""
       case _                                                => error()
     }
   }
@@ -139,32 +139,33 @@ case class FlechaCompiler(AST: AST) {
     ret()
   }
 
-  def compileLambdaApp(name: String,  externalExp: AST, reg: Int, routine: String, compiledArg: String) = {
-    val regStr = "$" + s"r$reg"
-    val regOfArg = "$" + s"r${reg-1}"
-    val freeV = freeValues(externalExp, name)
 
-    alloc(regStr, 2 + freeV.size) +
+  def compileLambda(name: String, externalExp: AST, reg: Int) = {
+    val regStr = "$" + s"r$reg"
+    val fv = freeValues(externalExp, name)
+    val routine = s"rtn$nextRtn"
+
+    alloc(regStr, 2 + fv.size) +
     mov_int(temp, getTag("Closure")) +
     store(regStr, 0, temp) +
     mov_label(temp, routine) +
-    store(regStr, 1, temp) +
-    compiledArg +
-    mov_reg("@fun", regStr) +
-    mov_reg("@arg", regOfArg) +
-    load("$" + s"r${reg+1}", "@fun", 1) +
-    icall("$" + s"r${reg+1}") +
-    mov_reg(regOfArg, "@res")
+    store(regStr, 1, temp)
+    // Por cada variable libre setear su valor en r1[i]
   }
 
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
-    val compiledExp = compileAst(appExprAST, reg)
     atomicOp match {
-      case LowerIdAST(value)                      => compiledExp + compileLowerIdApp(value, reg+1)
-      case UpperIdAST(value)                      => compiledExp + ""
-      case AppExprAST(atomic, expr)               => compiledExp + compileApplication(atomic, expr, reg+1)
-      case UnaryWithParenAST(LambdaAST(name, e2)) => compileLambdaApp(name, e2, reg+1, s"rtn$nextRtn", compiledExp)
+      case LowerIdAST(value)                      => compileAst(appExprAST, reg+1) + compileLowerIdApp(value, reg+2)
+      case UpperIdAST(value)                      => compileAst(appExprAST, reg+1) + ""
+      case AppExprAST(atomic, expr)               => compileAst(appExprAST, reg+1) + compileApplication(atomic, expr, reg+2)
+      case UnaryWithParenAST(LambdaAST(name, e2)) =>
+                                                  compileAst(atomicOp, reg+2) +
+                                                  compileAst(appExprAST, reg+1) +
+                                                  mov_reg("@fun", "$" + s"r${reg+2}") +
+                                                  mov_reg("@arg", "$" + s"r${reg+1}") +
+                                                  load(temp, "$" + s"r${reg+2}", 1) +
+                                                  icall(temp) + mov_reg( "$" +s"r$reg", "@res")
       case _                                      => error()
     }
   }
