@@ -172,7 +172,8 @@ case class FlechaCompiler(AST: AST) {
     val fvs = freeValues(externalExp, Set(name))
     val routine = s"rtn$nextRtn"
 
-    routinesStore = routinesStore ++ List(compileLambdaDefinition(name, externalExp, reg+1, routine))
+    val defRoutine = compileLambdaDefinition(name, externalExp, reg+1, routine)
+    routinesStore = routinesStore ++ List(defRoutine)
 
     alloc(regStr, 2 + fvs.size) +
     mov_int(temp, getTag("Closure")) +
