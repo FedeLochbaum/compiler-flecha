@@ -24,6 +24,7 @@ case class FlechaCompiler(AST: AST) {
   var rtn = -1
   var count = 0
   var nextTag = 7
+  var routinesStore: List[String] = List()
 
   def nextRtn= { rtn = rtn + 1 ; rtn }
   def newReg = { count = count + 1 ; count }
@@ -34,6 +35,7 @@ case class FlechaCompiler(AST: AST) {
     nextTag = 7
     rtn = -1
     tagMap = initialTagMap
+    routinesStore = List()
     initialEnv
   }
 
@@ -99,25 +101,11 @@ case class FlechaCompiler(AST: AST) {
   def compile : MamarrachoProgram = {
     restartState
     AST match {
-      case ProgramAST(defs) => jump("main") + compileRoutinesDef(defs.reverse) + s"main:\n" + defs.reverse.map(ast => compileAst(ast, newReg)).mkString
+      case ProgramAST(defs) => {
+        val code = defs.reverse.map(ast => compileAst(ast, newReg)).mkString
+        jump("main") + routinesStore.mkString + s"main:\n" + code
+      }
       case _                 => error()
-    }
-  }
-
-  def compileRoutinesDef(asts: List[AST]) = {
-    val res = asts.map(ast => compileRoutines(ast)).mkString ; rtn = -1 ; res
-  }
-
-  def compileRoutines(ast: AST): String = {
-    ast match {
-      case LambdaAST(name, externalExp)                     => compileLambdaDefinition(name, externalExp, newReg)
-      case DefAST(_, expr)                                  => compileRoutines(expr)
-      case AppExprAST(atomicOp, appExprAST)                 => compileRoutines(atomicOp) + compileRoutines(appExprAST)
-      case LetAST(_, internalExpr, externalExp)             => compileRoutines(internalExpr) + compileRoutines(externalExp)
-      case CaseBranchAST(_, _, internalExpr)                => compileRoutines(internalExpr)
-      case CaseAST(internalExpr, caseBranchs)               => compileRoutines(internalExpr) + caseBranchs.map( ast => compileRoutines(ast))
-      case UnaryWithParenAST(expr)                          => compileRoutines(expr)
-      case _                                                => ""
     }
   }
 
@@ -141,7 +129,6 @@ case class FlechaCompiler(AST: AST) {
     list.zipWithIndex.map { case (variable, index) => compileFreeVariable(variable, index, str) }.mkString
   }
 
-
   def compileAst(ast: AST, reg: Int) :String = {
     ast match {
       case DefAST(name, expr)                               => compileDef(name, expr, reg)
@@ -159,9 +146,8 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
-  def compileLambdaDefinition(name: String, externalExp: AST, reg: Int) = {
+  def compileLambdaDefinition(name: String, externalExp: AST, reg: Int, routine: String) = {
     val regStr = "$" + s"r$reg"
-    val routine = s"rtn$nextRtn"
     val fvs = freeValues(externalExp, Set(name))
     val argReg = newReg
 
@@ -170,7 +156,6 @@ case class FlechaCompiler(AST: AST) {
     val subExprCompiled = compileAst(externalExp, reg)
     if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
 
-    compileRoutines(externalExp) +
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
@@ -186,6 +171,8 @@ case class FlechaCompiler(AST: AST) {
     val regStr = "$" + s"r$reg"
     val fvs = freeValues(externalExp, Set(name))
     val routine = s"rtn$nextRtn"
+
+    routinesStore = routinesStore ++ List(compileLambdaDefinition(name, externalExp, reg+1, routine))
 
     alloc(regStr, 2 + fvs.size) +
     mov_int(temp, getTag("Closure")) +
@@ -225,7 +212,6 @@ case class FlechaCompiler(AST: AST) {
       }
     } else ""
   }
-
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     atomicOp match {
