@@ -70,7 +70,7 @@ case class FlechaCompiler(AST: AST) {
       case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
       case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
       case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
-      case LowerIdAST(value)                                => if(isBinaryOp(value)) List() else List(value)
+      case LowerIdAST(value)                                => if(isBinaryOp(value) || isNativeFunction(value)) List() else List(value)
       case _                                                => List()
     }).filter( fv => !excluded.contains(fv)).toSet
   }
@@ -82,6 +82,14 @@ case class FlechaCompiler(AST: AST) {
            "LT"  | "ADD" | "SUB"| "MUL"|
            "DIV" | "MOD" | "UMINUS"         => true
       case _                                => false
+    }
+  }
+
+  def isNativeFunction(value: String) = {
+    value match {
+      case "unsafePrintChar" |
+           "unsafePrintInt"                => true
+      case _                               => false
     }
   }
 
