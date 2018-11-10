@@ -158,7 +158,7 @@ case class FlechaCompiler(AST: AST) {
     val argReg = newReg
 
     val currentVal = env.get(name)
-    env = env.+((name, BEnclosed(argReg))) // El reg donde estara el valor de $arg, es decir, el valor de name
+    env = env.+((name, BEnclosed(argReg)))
     val subExprCompiled = compileAst(externalExp, reg)
     if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
 
@@ -167,7 +167,7 @@ case class FlechaCompiler(AST: AST) {
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
     mov_reg("$" + s"r$newReg", arg) +
-    loadFreeValues(fvs.toList) + // TODO: carga las freevalues en registros y las guarda en env
+    loadFreeValues(fvs.toList) +
     subExprCompiled +
     mov_reg("@res", regStr) +
     ret()
@@ -176,7 +176,7 @@ case class FlechaCompiler(AST: AST) {
 
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
-    val fvs = freeValues(externalExp, Set()) // Chequear si no es Set(name)
+    val fvs = freeValues(externalExp, Set(name))
     val routine = s"rtn$nextRtn"
 
     alloc(regStr, 2 + fvs.size) +
@@ -185,7 +185,6 @@ case class FlechaCompiler(AST: AST) {
     mov_label(temp, routine) +
     store(regStr, 1, temp) +
     compileFreeValuesInitialization(fvs.toList, regStr)
-    // Por cada variable libre setear su valor en r1[i] (que en la def de la rutina fueron compiladas en elgun registro y guardadas en env)
   }
 
 
