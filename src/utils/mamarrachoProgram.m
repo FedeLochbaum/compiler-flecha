@@ -3,6 +3,7 @@ rtn0:
 mov_reg($fun, @fun)
 mov_reg($arg, @arg)
 mov_reg($r3, $arg)
+mov_reg($r1, $r2)
 mov_reg(@res, $r1)
 return()
 main:

@@ -135,8 +135,10 @@ case class FlechaCompiler(AST: AST) {
     val fv = freeValues(externalExp, name)
     val argReg = newReg
 
-    // debo agregar a env name = argReg, compilar este cuerpo y luego sacarla ? (porque solo mantengo un env global)
+    val currentVal = env.get(name)
+    env = env.+((name, BEnclosed(argReg))) // El reg donde estara el valor de $arg, es decir, el valor de name
     val subExprCompiled = compileAst(externalExp, reg)
+    if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
 
     compileRoutines(externalExp) +
     s"$routine:\n" +
