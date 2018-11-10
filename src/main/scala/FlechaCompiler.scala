@@ -166,7 +166,7 @@ case class FlechaCompiler(AST: AST) {
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
-    mov_reg("$" + s"r$newReg", arg) +
+    mov_reg("$" + s"r$argReg", arg) +
     loadFreeValues(fvs.toList) +
     subExprCompiled +
     mov_reg("@res", regStr) +
