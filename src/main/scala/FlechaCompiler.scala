@@ -243,24 +243,21 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
-  def compileNativeFunctionApp(value: String, appExprAST: AST, reg: Int) = {
-    compileAst(appExprAST, reg) + compileLowerIdApp(value, reg+1)
-  }
+  def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
+    val prevRegStr = "$" + s"r$reg"
+    val regStr = "$" + s"r${reg+1}"
 
-  def compileSimpleApp(value: String, appExprAST: AST, reg: Int) = {
-    compileAst(appExprAST, reg) + ""
-
-  }
-
-  def compileLowerIdApp(funcName: String, reg: Int) = {
-    val prevRegStr = "$" + s"r${reg-1}"
-    val regStr = "$" + s"r$reg"
-
-    funcName match {
+    compileAst(appExprAST, reg) +
+      (funcName match {
       case "unsafePrintChar" => load(regStr, prevRegStr, 1) + print_char(regStr)
       case "unsafePrintInt"  => load(regStr, prevRegStr, 1) + print_int(regStr)
       case  _                => error()
-    }
+    })
+  }
+
+  def compileSimpleApp(funcName: String, appExprAST: AST, reg: Int) = {
+    compileAst(appExprAST, reg) + ""
+
   }
 
   def compileChar(char: Char, reg: Int) = {
