@@ -256,8 +256,13 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileSimpleApp(funcName: String, appExprAST: AST, reg: Int) = {
-    compileAst(appExprAST, reg) + ""
-
+    compileVariable(funcName, reg+1)
+    compileAst(appExprAST, reg+2) +
+    load("$" + s"r${reg+3}", "@fun", 1) +
+    mov_reg("@fun", "$" + s"r${reg+1}") +
+    mov_reg("@arg", "$" + s"r${reg+2}") +
+    icall("$" + s"r${reg+3}") +
+    mov_reg("$" + s"r$reg", "@res")
   }
 
   def compileChar(char: Char, reg: Int) = {
