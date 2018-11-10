@@ -64,14 +64,14 @@ case class FlechaCompiler(AST: AST) {
 
   def freeValues(ast: AST, excluded: Set[String]): Set[String] = {
     (ast match {
-      case LetAST(name, internalExpr, externalExp)          => freeValues(internalExpr, excluded) ++ freeValues(externalExp, excluded ++ Seq(name))
+      case LetAST(name, internalExpr, externalExp)          => freeValues(internalExpr, excluded) ++ freeValues(externalExp, excluded ++ List(name))
       case AppExprAST(atomicOp, appExprAST)                 => freeValues(atomicOp, excluded) ++ freeValues(appExprAST, excluded)
-      case LambdaAST(name, externalExp)                     => freeValues(externalExp, excluded ++ Seq(name))
+      case LambdaAST(name, externalExp)                     => freeValues(externalExp, excluded ++ List(name))
       case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
       case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
       case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
-      case LowerIdAST(value)                                => if(isBinaryOp(value)) Seq() else Seq(value)
-      case _                                                => Seq()
+      case LowerIdAST(value)                                => if(isBinaryOp(value)) List() else List(value)
+      case _                                                => List()
     }).filter( fv => !excluded.contains(fv)).toSet
   }
 
@@ -113,12 +113,24 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def loadVariable(variable: String, index: Int, reg: Int): String = {
+    env = env.+((variable, BEnclosed(reg)))
+    load("$" + s"r$reg", "$fun", index + 2)
+  }
+
+  def compileFreeVariable(variable: String, index: Int, str: String) = {
+    env(variable) match {
+      case BEnclosed(regI) => store(str, index + 2, "$" + s"r$regI")
+      case _               => error("Expected a BEclosed with reg")
+    }
+  }
+
   def loadFreeValues(list: List[String]) = {
-    ""
+    list.zipWithIndex.map { case (variable, index) => loadVariable(variable, index, newReg) }.mkString
   }
 
   def compileFreeValuesInitialization(list: List[String], str: String) = {
-    ""
+    list.zipWithIndex.map { case (variable, index) => compileFreeVariable(variable, index, str) }.mkString
   }
 
 
@@ -155,7 +167,7 @@ case class FlechaCompiler(AST: AST) {
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
     mov_reg("$" + s"r$newReg", arg) +
-    loadFreeValues(fvs.toList) + // TODO: compila las freevalues y las guarda en env
+    loadFreeValues(fvs.toList) + // TODO: carga las freevalues en registros y las guarda en env
     subExprCompiled +
     mov_reg("@res", regStr) +
     ret()
@@ -164,7 +176,7 @@ case class FlechaCompiler(AST: AST) {
 
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
-    val fvs = freeValues(externalExp, Set(name))
+    val fvs = freeValues(externalExp, Set()) // Chequear si no es Set(name)
     val routine = s"rtn$nextRtn"
 
     alloc(regStr, 2 + fvs.size) +
