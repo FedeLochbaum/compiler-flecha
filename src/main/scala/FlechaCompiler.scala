@@ -62,20 +62,26 @@ case class FlechaCompiler(AST: AST) {
     if (tag.isEmpty) { createTag(string) } else tag.get
   }
 
-  def freeValues(ast: AST, lambdaParam: String) = {
-    ast match {
-      case DefAST(name, expr)                               => List()
-      case CharAST(value)                                   => List()
-      case NumberAST(value)                                 => List()
-      case AppExprAST(atomicOp, appExprAST)                 => List()
-      case LowerIdAST(value)                                => List()
-      case LetAST(name, internalExpr, externalExp)          => List()
-      case LambdaAST(name, externalExp)                     => List()
-      case UpperIdAST(value)                                => List()
-      case CaseBranchAST(constructor, params, internalExpr) => List()
-      case CaseAST(internalExpr, caseBranchs)               => List()
-      case UnaryWithParenAST(expr)                          => List()
+  def freeValues(ast: AST, excluded: Set[String]): Set[String] = {
+    (ast match {
+      case LetAST(name, internalExpr, externalExp)          => freeValues(internalExpr, excluded) ++ freeValues(externalExp, excluded ++ List(name))
+      case AppExprAST(atomicOp, appExprAST)                 => freeValues(atomicOp, excluded) ++ freeValues(appExprAST, excluded)
+      case LambdaAST(name, externalExp)                     => freeValues(externalExp, excluded ++ List(name))
+      case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
+      case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
+      case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
+      case LowerIdAST(value)                                => if(isBinaryOp(value)) List() else List(value)
       case _                                                => List()
+    }).filter( fv => !excluded.contains(fv)).toSet
+  }
+
+  def isBinaryOp(value: String) = {
+    value match {
+      case "OR"  | "AND" | "NOT"| "EQ" |
+           "NE"  | "GE"  | "LE" | "GT" |
+           "LT"  | "ADD" | "SUB"| "MUL"|
+           "DIV" | "MOD" | "UMINUS"         => true
+      case _                                => false
     }
   }
 
@@ -107,6 +113,25 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def loadVariable(variable: String, index: Int, reg: Int): String = {
+    env = env.+((variable, BEnclosed(reg)))
+    load("$" + s"r$reg", "$fun", index + 2)
+  }
+
+  def compileFreeVariable(variable: String, index: Int, str: String) = {
+    env(variable) match {
+      case BEnclosed(regI) => store(str, index + 2, "$" + s"r$regI")
+      case _               => error("Expected a BEclosed with reg")
+    }
+  }
+
+  def loadFreeValues(list: List[String]) = {
+    list.zipWithIndex.map { case (variable, index) => loadVariable(variable, index, newReg) }.mkString
+  }
+
+  def compileFreeValuesInitialization(list: List[String], str: String) = {
+    list.zipWithIndex.map { case (variable, index) => compileFreeVariable(variable, index, str) }.mkString
+  }
 
 
   def compileAst(ast: AST, reg: Int) :String = {
@@ -129,12 +154,21 @@ case class FlechaCompiler(AST: AST) {
   def compileLambdaDefinition(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
     val routine = s"rtn$nextRtn"
+    val fvs = freeValues(externalExp, Set(name))
+    val argReg = newReg
+
+    val currentVal = env.get(name)
+    env = env.+((name, BEnclosed(argReg)))
+    val subExprCompiled = compileAst(externalExp, reg)
+    if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
 
     compileRoutines(externalExp) +
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
-    mov_reg(regStr, arg) +
+    mov_reg("$" + s"r$argReg", arg) +
+    loadFreeValues(fvs.toList) +
+    subExprCompiled +
     mov_reg("@res", regStr) +
     ret()
   }
@@ -142,15 +176,15 @@ case class FlechaCompiler(AST: AST) {
 
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
-    val fv = freeValues(externalExp, name)
+    val fvs = freeValues(externalExp, Set(name))
     val routine = s"rtn$nextRtn"
 
-    alloc(regStr, 2 + fv.size) +
+    alloc(regStr, 2 + fvs.size) +
     mov_int(temp, getTag("Closure")) +
     store(regStr, 0, temp) +
     mov_label(temp, routine) +
-    store(regStr, 1, temp)
-    // Por cada variable libre setear su valor en r1[i]
+    store(regStr, 1, temp) +
+    compileFreeValuesInitialization(fvs.toList, regStr)
   }
 
 
