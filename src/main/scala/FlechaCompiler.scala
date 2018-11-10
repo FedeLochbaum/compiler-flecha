@@ -107,6 +107,9 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def compileFreeValues(list: List[String]) = {
+    ""
+  }
 
 
   def compileAst(ast: AST, reg: Int) :String = {
@@ -129,12 +132,19 @@ case class FlechaCompiler(AST: AST) {
   def compileLambdaDefinition(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
     val routine = s"rtn$nextRtn"
+    val fv = freeValues(externalExp, name)
+    val argReg = newReg
+
+    // debo agregar a env name = argReg, compilar este cuerpo y luego sacarla ? (porque solo mantengo un env global)
+    val subExprCompiled = compileAst(externalExp, reg)
 
     compileRoutines(externalExp) +
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
-    mov_reg(regStr, arg) +
+    mov_reg("$" + s"r$newReg", arg) +
+    compileFreeValues(fv) + // compila las freevalues y las guarda en env
+    subExprCompiled +
     mov_reg("@res", regStr) +
     ret()
   }
@@ -144,13 +154,14 @@ case class FlechaCompiler(AST: AST) {
     val regStr = "$" + s"r$reg"
     val fv = freeValues(externalExp, name)
     val routine = s"rtn$nextRtn"
+//    val values = lookUpValues(externalExp).map( value => ).mkString
 
     alloc(regStr, 2 + fv.size) +
     mov_int(temp, getTag("Closure")) +
     store(regStr, 0, temp) +
     mov_label(temp, routine) +
     store(regStr, 1, temp)
-    // Por cada variable libre setear su valor en r1[i]
+    // Por cada variable libre setear su valor en r1[i] (que en la def de la rutina fueron compiladas en elgun registro y guardadas en env)
   }
 
 
