@@ -64,15 +64,25 @@ case class FlechaCompiler(AST: AST) {
 
   def freeValues(ast: AST, excluded: Set[String]): Set[String] = {
     (ast match {
-      case LetAST(name, internalExpr, externalExp)          => freeValues(internalExpr, excluded) ++ freeValues(externalExp, excluded ++ List(name))
+      case LetAST(name, internalExpr, externalExp)          => freeValues(internalExpr, excluded) ++ freeValues(externalExp, excluded ++ Seq(name))
       case AppExprAST(atomicOp, appExprAST)                 => freeValues(atomicOp, excluded) ++ freeValues(appExprAST, excluded)
-      case LambdaAST(name, externalExp)                     => freeValues(externalExp, excluded ++ List(name))
+      case LambdaAST(name, externalExp)                     => freeValues(externalExp, excluded ++ Seq(name))
       case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
       case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
       case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
-      case LowerIdAST(value)                                => List(value)
-      case _                                                => List()
+      case LowerIdAST(value)                                => if(isBinaryOp(value)) Seq() else Seq(value)
+      case _                                                => Seq()
     }).filter( fv => !excluded.contains(fv)).toSet
+  }
+
+  def isBinaryOp(value: String) = {
+    value match {
+      case "OR"  | "AND" | "NOT"| "EQ" |
+           "NE"  | "GE"  | "LE" | "GT" |
+           "LT"  | "ADD" | "SUB"| "MUL"|
+           "DIV" | "MOD" | "UMINUS"         => true
+      case _                                => false
+    }
   }
 
   ///////////////////////////////////// FINISH COMPILER STATE FUNCTIONALITY //////////////////////////////////////
