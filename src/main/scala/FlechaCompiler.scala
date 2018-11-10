@@ -195,23 +195,6 @@ case class FlechaCompiler(AST: AST) {
     compileFreeValuesInitialization(fvs.toList, regStr)
   }
 
-
-  def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
-    atomicOp match {
-      case LowerIdAST(value)                      => compileAst(appExprAST, reg+1) + compileLowerIdApp(value, reg+2)
-      case UpperIdAST(value)                      => compileAst(appExprAST, reg+1) + ""
-      case AppExprAST(atomic, expr)               => compileAst(appExprAST, reg+1) + compileApplication(atomic, expr, reg+2)
-      case UnaryWithParenAST(LambdaAST(name, e2)) =>
-                                                  compileAst(atomicOp, reg+2) +
-                                                  compileAst(appExprAST, reg+1) +
-                                                  mov_reg("@fun", "$" + s"r${reg+2}") +
-                                                  mov_reg("@arg", "$" + s"r${reg+1}") +
-                                                  load(temp, "$" + s"r${reg+2}", 1) +
-                                                  icall(temp) + mov_reg( "$" +s"r$reg", "@res")
-      case _                                      => error()
-    }
-  }
-
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
     val e1 = compileAst(internalExpr, reg+1)
     val currentVal = env.get(name)
@@ -238,10 +221,35 @@ case class FlechaCompiler(AST: AST) {
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
         case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2")
-        case BRegister(register) => ""
         case _                   => ""
       }
     } else ""
+  }
+
+
+  def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
+    atomicOp match {
+      case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
+      case UpperIdAST(value)                      => compileAst(appExprAST, reg+1) + ""
+      case AppExprAST(atomic, expr)               => compileAst(appExprAST, reg+1) + compileApplication(atomic, expr, reg+2)
+      case UnaryWithParenAST(LambdaAST(name, e2)) =>
+          compileAst(atomicOp, reg+2) +
+          compileAst(appExprAST, reg+1) +
+          mov_reg("@fun", "$" + s"r${reg+2}") +
+          mov_reg("@arg", "$" + s"r${reg+1}") +
+          load(temp, "$" + s"r${reg+2}", 1) +
+          icall(temp) + mov_reg( "$" +s"r$reg", "@res")
+      case _                                      => error()
+    }
+  }
+
+  def compileNativeFunctionApp(value: String, appExprAST: AST, reg: Int) = {
+    compileAst(appExprAST, reg) + compileLowerIdApp(value, reg+1)
+  }
+
+  def compileSimpleApp(value: String, appExprAST: AST, reg: Int) = {
+    compileAst(appExprAST, reg) + ""
+
   }
 
   def compileLowerIdApp(funcName: String, reg: Int) = {
