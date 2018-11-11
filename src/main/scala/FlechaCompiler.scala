@@ -8,7 +8,7 @@ case class FlechaCompiler(AST: AST) {
   val fun  = "$" + "fun"
   val arg  = "$" + "arg"
 
-  val initialTagMap = Map(
+  val initialTagMap: Map[String, Int] = Map(
     "Int"     -> 1,
     "Char"    -> 2,
     "Closure" -> 3,
@@ -18,7 +18,15 @@ case class FlechaCompiler(AST: AST) {
     "Cons"    -> 7,
   )
 
-  var tagMap = initialTagMap
+  val initialArity: Map[String, Int] = Map(
+    "True"    -> 0,
+    "False"   -> 0,
+    "Nil"     -> 0,
+    "Cons"    -> 2,
+  )
+
+  var arity: Map[String, Int] = initialArity
+  var tagMap: Map[String, Int] = initialTagMap
   var env : Map[String, Binding] = Map()
 
   var rtn = -1
@@ -35,6 +43,7 @@ case class FlechaCompiler(AST: AST) {
     nextTag = 7
     rtn = -1
     tagMap = initialTagMap
+    arity = initialArity
     routinesStore = List()
     initialEnv
   }
@@ -139,9 +148,9 @@ case class FlechaCompiler(AST: AST) {
       case LetAST(name, internalExpr, externalExp)          => compileLet(name, internalExpr, externalExp, reg)
       case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case LambdaAST(name, externalExp)                     => compileLambda(name, externalExp, reg)
-      case UpperIdAST(value)                                => ""
-      case CaseBranchAST(constructor, params, internalExpr) => ""
+      case UpperIdAST(value)                                => compileConstructor(value, reg)
       case CaseAST(internalExpr, caseBranchs)               => ""
+      case CaseBranchAST(constructor, params, internalExpr) => ""
       case _                                                => error()
     }
   }
@@ -214,6 +223,19 @@ case class FlechaCompiler(AST: AST) {
     } else mov_reg(regStr, defRegName)
   }
 
+  def compileConstructor(constructorName: String, reg: Int) = {
+    // TODO : ASUMO QUE ACA SIEMPRE EL CONSTRUCTOR VA A SER AISLADO
+      if(tagMap.get(constructorName).isEmpty) {
+        tagMap = tagMap.+((constructorName, newTag))
+        arity = arity.+((constructorName, 0))
+      }
+
+      alloc("$" +s"r$reg", 1) +
+      mov_int(temp, getTag(constructorName)) +
+      store("$" +s"r$reg", 0, temp)
+
+  }
+
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     atomicOp match {
       case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
@@ -234,7 +256,16 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileConstructorApp(constructorName: String, appExprAST: AST, reg: Int) = {
-    ""
+//    checkOrUpdateArity(String, appExprAST)
+
+    // TODO: REVISAR, PENSAR COMO RESOLVERLO
+    compileConstructor(constructorName, reg+1)
+    compileAst(appExprAST, reg+2) +
+    alloc("$" +s"r$reg", 1 + arity(constructorName)) +
+    mov_int(temp, getTag(constructorName)) +
+    store("$" +s"r$reg", 0, temp) +
+    store("$" +s"r$reg", 1, "$" +s"r${reg+1}") +
+    store("$" +s"r$reg", 2, "$" +s"r${reg+2}")
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
