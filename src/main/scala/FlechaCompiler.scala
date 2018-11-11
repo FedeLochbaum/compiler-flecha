@@ -160,22 +160,19 @@ case class FlechaCompiler(AST: AST) {
     val fvs = freeValues(externalExp, Set(name))
     val argReg = newReg
 
-    val currentVal = env.get(name)
+    val currentEnv = env
     env = env.+((name, BEnclosed(argReg)))
-    val subExprCompiled = compileAst(externalExp, reg)
-    if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
+    val subExprCompiled = loadFreeValues(fvs.toList) + compileAst(externalExp, reg)
+    env = currentEnv
 
-    
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
     mov_reg("$" + s"r$argReg", arg) +
-    loadFreeValues(fvs.toList) +
     subExprCompiled +
     mov_reg("@res", regStr) +
     ret()
   }
-
 
   def compileLambda(name: String, externalExp: AST, reg: Int) = {
     val regStr = "$" + s"r$reg"
