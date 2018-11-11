@@ -196,10 +196,10 @@ case class FlechaCompiler(AST: AST) {
 
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
     val code = compileAst(subExpr, reg)
-    val defRegName = s"G_$defName"
+    val defRegName = "$" + s"G_$defName"
     env = env.+((defName, BEnclosed(reg)))
 
-    code + mov_reg("$" + defRegName, "$" + s"r$reg")
+    code + mov_reg(defRegName, "$" + s"r$reg")
   }
 
   def compileVariable(variableName: String, reg: Int) = {
@@ -209,25 +209,32 @@ case class FlechaCompiler(AST: AST) {
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
         case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2")
-        case _                   => ""
+        case _                   => error()
       }
-    } else ""
+    } else mov_reg(regStr, defRegName)
   }
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     atomicOp match {
       case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
-      case UpperIdAST(value)                      => compileAst(appExprAST, reg+1) + ""
+      case UpperIdAST(value)                      => compileConstructorApp(value, appExprAST, reg)
       case AppExprAST(atomic, expr)               => compileAst(appExprAST, reg+1) + compileApplication(atomic, expr, reg+2)
-      case UnaryWithParenAST(LambdaAST(name, e2)) =>
-          compileAst(atomicOp, reg+2) +
-          compileAst(appExprAST, reg+1) +
-          mov_reg("@fun", "$" + s"r${reg+2}") +
-          mov_reg("@arg", "$" + s"r${reg+1}") +
-          load(temp, "$" + s"r${reg+2}", 1) +
-          icall(temp) + mov_reg( "$" +s"r$reg", "@res")
+      case UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
       case _                                      => error()
     }
+  }
+
+  def compileLambdaApp(lambda: AST, expr: AST, reg: Int) = {
+      compileAst(lambda, reg+2) +
+      compileAst(expr, reg+1) +
+      mov_reg("@fun", "$" + s"r${reg+2}") +
+      mov_reg("@arg", "$" + s"r${reg+1}") +
+      load(temp, "$" + s"r${reg+2}", 1) +
+      icall(temp) + mov_reg( "$" +s"r$reg", "@res")
+  }
+
+  def compileConstructorApp(constructorName: String, appExprAST: AST, reg: Int) = {
+    ""
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
