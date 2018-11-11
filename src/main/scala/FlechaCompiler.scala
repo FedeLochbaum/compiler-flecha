@@ -165,6 +165,7 @@ case class FlechaCompiler(AST: AST) {
     val subExprCompiled = compileAst(externalExp, reg)
     if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
 
+    
     s"$routine:\n" +
     mov_reg(fun, "@fun") +
     mov_reg(arg, "@arg") +
@@ -180,8 +181,9 @@ case class FlechaCompiler(AST: AST) {
     val regStr = "$" + s"r$reg"
     val fvs = freeValues(externalExp, Set(name))
     val routine = s"rtn$nextRtn"
+    val subExpReg = newReg
 
-    val defRoutine = compileLambdaDefinition(name, externalExp, reg+1, routine)
+    val defRoutine = compileLambdaDefinition(name, externalExp, subExpReg, routine)
     routinesStore = routinesStore ++ List(defRoutine)
 
     alloc(regStr, 2 + fvs.size) +
@@ -193,14 +195,16 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileLet(name: String, internalExpr: AST, externalExp: AST, reg: Int) = {
-    val e1 = compileAst(internalExpr, reg+1)
+    val subExpReg = newReg
+    val subExpReg2 = newReg
+    val e1 = compileAst(internalExpr, subExpReg)
     val currentVal = env.get(name)
 
-    env = env.+((name, BEnclosed(reg+1)))
+    env = env.+((name, BEnclosed(subExpReg)))
 
-    val e2 = compileAst(externalExp, reg+2)
+    val e2 = compileAst(externalExp, subExpReg2)
     if(currentVal.isEmpty) { env = env.-(name) } else { env = env.+((name, currentVal.get)) }
-    e1 + e2 + mov_reg("$" + s"r$reg", "$" + s"r${reg+2}")
+    e1 + e2 + mov_reg("$" + s"r$reg", "$" + s"r$subExpReg2")
   }
 
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
@@ -240,37 +244,43 @@ case class FlechaCompiler(AST: AST) {
     atomicOp match {
       case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
       case UpperIdAST(value)                      => compileConstructorApp(value, appExprAST, reg)
-      case AppExprAST(atomic, expr)               => compileAst(appExprAST, reg+1) + compileApplication(atomic, expr, reg+2)
+      case AppExprAST(atomic, expr)               => compileAst(appExprAST, newReg) + compileApplication(atomic, expr, newReg)
       case UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
       case _                                      => error()
     }
   }
 
   def compileLambdaApp(lambda: AST, expr: AST, reg: Int) = {
-      compileAst(lambda, reg+2) +
-      compileAst(expr, reg+1) +
-      mov_reg("@fun", "$" + s"r${reg+2}") +
-      mov_reg("@arg", "$" + s"r${reg+1}") +
-      load(temp, "$" + s"r${reg+2}", 1) +
+      val lambdaReg = newReg
+      val argReg = newReg
+
+      compileAst(lambda, lambdaReg) +
+      compileAst(expr, argReg) +
+      mov_reg("@fun", "$" + s"r$lambdaReg") +
+      mov_reg("@arg", "$" + s"r$argReg") +
+      load(temp, "$" + s"r$lambdaReg", 1) +
       icall(temp) + mov_reg( "$" +s"r$reg", "@res")
   }
 
   def compileConstructorApp(constructorName: String, appExprAST: AST, reg: Int) = {
-//    checkOrUpdateArity(String, appExprAST)
+    val constReg = newReg
+    val argReg = newReg
+
+    //    checkOrUpdateArity(String, appExprAST)
 
     // TODO: REVISAR, PENSAR COMO RESOLVERLO
-    compileConstructor(constructorName, reg+1)
-    compileAst(appExprAST, reg+2) +
+    compileConstructor(constructorName, constReg)
+    compileAst(appExprAST, argReg) +
     alloc("$" +s"r$reg", 1 + arity(constructorName)) +
     mov_int(temp, getTag(constructorName)) +
     store("$" +s"r$reg", 0, temp) +
-    store("$" +s"r$reg", 1, "$" +s"r${reg+1}") +
-    store("$" +s"r$reg", 2, "$" +s"r${reg+2}")
+    store("$" +s"r$reg", 1, "$" +s"r$constReg") +
+    store("$" +s"r$reg", 2, "$" +s"r$argReg")
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
     val prevRegStr = "$" + s"r$reg"
-    val regStr = "$" + s"r${reg+1}"
+    val regStr = "$" + s"r$newReg"
 
     compileAst(appExprAST, reg) +
       (funcName match {
@@ -281,12 +291,16 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileSimpleApp(funcName: String, appExprAST: AST, reg: Int) = {
-    compileVariable(funcName, reg+1)
-    compileAst(appExprAST, reg+2) +
-    load("$" + s"r${reg+3}", "@fun", 1) +
-    mov_reg("@fun", "$" + s"r${reg+1}") +
-    mov_reg("@arg", "$" + s"r${reg+2}") +
-    icall("$" + s"r${reg+3}") +
+    val funcReg = newReg
+    val argReg = newReg
+    val callReg = newReg
+
+    compileVariable(funcName, funcReg)
+    compileAst(appExprAST, argReg) +
+    load("$" + s"r$callReg", "@fun", 1) +
+    mov_reg("@fun", "$" + s"r$funcReg") +
+    mov_reg("@arg", "$" + s"r$argReg") +
+    icall("$" + s"r$callReg") +
     mov_reg("$" + s"r$reg", "@res")
   }
 
