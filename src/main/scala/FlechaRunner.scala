@@ -5,7 +5,7 @@ import sys.process._
 
 object FlechaRunner {
   def run(flechaProgram: String) :String = {
-    val mamarrachoProgram = FlechaCompiler(FlechaParser(flechaProgram).ast).compile
+    val mamarrachoProgram = FlechaCompiler(FlechaParser(flechaProgram.replace("\r", "")).ast).compile
     val file = new File(s"src/utils/mamarrachoProgram.m")
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(mamarrachoProgram)

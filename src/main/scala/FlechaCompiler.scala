@@ -276,13 +276,13 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
-    val prevRegStr = "$" + s"r$reg"
-    val regStr = "$" + s"r$newReg"
+    val regStr = "$" + s"r$reg"
+    val nextReg = "$" + s"r$newReg"
 
     compileAst(appExprAST, reg) +
       (funcName match {
-      case "unsafePrintChar" => load(regStr, prevRegStr, 1) + print_char(regStr)
-      case "unsafePrintInt"  => load(regStr, prevRegStr, 1) + print_int(regStr)
+      case "unsafePrintChar" => load(nextReg, regStr, 1) + print_char(nextReg)
+      case "unsafePrintInt"  => load(nextReg, regStr, 1) + print_int(nextReg)
       case  _                => error()
     })
   }
@@ -290,15 +290,13 @@ case class FlechaCompiler(AST: AST) {
   def compileSimpleApp(funcName: String, appExprAST: AST, reg: Int) = {
     val funcReg = newReg
     val argReg = newReg
-    val callReg = newReg
 
-    compileVariable(funcName, funcReg)
+    compileVariable(funcName, funcReg) +
     compileAst(appExprAST, argReg) +
-    load("$" + s"r$callReg", "@fun", 1) +
     mov_reg("@fun", "$" + s"r$funcReg") +
     mov_reg("@arg", "$" + s"r$argReg") +
-    icall("$" + s"r$callReg") +
-    mov_reg("$" + s"r$reg", "@res")
+    load(temp, "$" + s"r$funcReg", 1) +
+    icall(temp) + mov_reg( "$" +s"r$reg", "@res")
   }
 
   def compileChar(char: Char, reg: Int) = {
