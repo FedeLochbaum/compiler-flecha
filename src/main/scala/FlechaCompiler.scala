@@ -5,6 +5,9 @@ case class FlechaCompiler(AST: AST) {
   type MamarrachoProgram = String
 
   val temp = "$" + "t"
+  val tag  = "$" + "tag"
+  val test = "$" + "test"
+  val tval = "$" + "val"
   val fun  = "$" + "fun"
   val arg  = "$" + "arg"
 
@@ -19,6 +22,7 @@ case class FlechaCompiler(AST: AST) {
   )
 
   val initialArity: Map[String, Int] = Map(
+    "Int"     -> 0,
     "True"    -> 0,
     "False"   -> 0,
     "Nil"     -> 0,
@@ -29,6 +33,8 @@ case class FlechaCompiler(AST: AST) {
   var tagMap: Map[String, Int] = initialTagMap
   var env : Map[String, Binding] = Map()
 
+  var branchNumber = 0
+  var endCase = 0
   var rtn = -1
   var count = 0
   var nextTag = 7
@@ -37,9 +43,13 @@ case class FlechaCompiler(AST: AST) {
   def nextRtn= { rtn = rtn + 1 ; rtn }
   def newReg = { count = count + 1 ; count }
   def newTag = { nextTag = nextTag + 1 ; nextTag }
+  def newBranchName = { branchNumber = branchNumber + 1 ; s"branch$branchNumber" }
+  def nextEndCase = { endCase = endCase + 1 ; s"END_CASE$endCase" }
 
   def restartState = {
     count = 0
+    endCase = 0
+    branchNumber = 0
     nextTag = 7
     rtn = -1
     tagMap = initialTagMap
@@ -68,9 +78,21 @@ case class FlechaCompiler(AST: AST) {
     tag
   }
 
+  def createConstructor(constructor: String, args: Int) = {
+    if (tagMap.get(constructor).isEmpty) { createTag(constructor) }
+    if (arity.get(constructor).isEmpty) { arity = arity.+((constructor, args)) }
+  }
+
   def getTag(string: String): Int = {
     val tag = tagMap.get(string)
     if (tag.isEmpty) { createTag(string) } else tag.get
+  }
+
+  def tagOf(branch: AST): Int = {
+    branch match {
+      case CaseBranchAST(constructor, _, _) => getTag(constructor)
+      case _                                => error()
+    }
   }
 
   def freeValues(ast: AST, excluded: Set[String]): Set[String] = {
@@ -224,26 +246,65 @@ case class FlechaCompiler(AST: AST) {
     } else mov_reg(regStr, defRegName)
   }
 
-  def compileCase(internalExpr: AST, caseBranchs: List[AST], reg: Int) = {
-    error("compile case")
-  }
-
-  def compileCaseBranch(constructor: String, parameters: List[String], parseInternalExpression: AST, reg: Int) = {
-    error("compile case branch")
-  }
-
   def compileConstructor(constructorName: String, reg: Int) = {
-    error("const aislado")
-//    // TODO : ASUMO QUE ACA SIEMPRE EL CONSTRUCTOR VA A SER AISLADO
-//      if(tagMap.get(constructorName).isEmpty) {
-//        tagMap = tagMap.+((constructorName, newTag))
-//        arity = arity.+((constructorName, 0))
-//      }
-//
-//      alloc("$" +s"r$reg", 1) +
-//      mov_int(temp, getTag(constructorName)) +
-//      store("$" +s"r$reg", 0, temp)
+    if(tagMap.get(constructorName).isEmpty) { tagMap = tagMap.+((constructorName, newTag)) ; arity = arity.+((constructorName, 0)) }
 
+    alloc("$" +s"r$reg", 1) +
+      mov_int(temp, getTag(constructorName)) +
+      store("$" +s"r$reg", 0, temp)
+  }
+
+  def compileBranch(branch: AST, tagBranch: String, tagEndCase: String) = {
+    s"$tagBranch:\n" +
+    compileAst(branch, newReg) +
+    jump(tagEndCase)
+  }
+
+  def compileBranchs(caseBranchs: List[AST]) = {
+    val tagEndCase = nextEndCase
+    var compiledBranchs: List[String] = List()
+
+    val compareBranchs = caseBranchs.map {
+      branch =>
+        val tagBranch = newBranchName ;
+        val compiledBranch = compileBranch(branch, tagBranch, tagEndCase) ;
+        compiledBranchs = compiledBranchs ++ List(compiledBranch) ;
+
+        mov_int(test, tagOf(branch)) +
+        jump_eq(tag, test, tagBranch)
+    }.mkString
+
+    compareBranchs +
+    compiledBranchs.mkString +
+    s"$tagEndCase:\n"
+  }
+
+  def compileCase(internalExpr: AST, caseBranchs: List[AST], reg: Int) = {
+    val eReg = newReg
+
+    compileAst(internalExpr, eReg) +
+    mov_reg(tval, "$" + s"r$eReg") +
+    load(tag, tval, 0) +
+    compileBranchs(caseBranchs)
+  }
+
+  def loadConstructorVariable(variable: String, index: Int, reg: Int): String = {
+    env = env.+((variable, BEnclosed(reg)))
+    load("$" + s"r$reg", tval, index + 1)
+  }
+
+  def loadBranchArgs(params: List[String]) = {
+    params.zipWithIndex.map { case (variable, index) => loadConstructorVariable(variable, index, newReg) }.mkString
+  }
+
+  def compileCaseBranch(constructor: String, params: List[String], internalExpr: AST, reg: Int) = {
+    createConstructor(constructor, params.length)
+    if (arity(constructor) != params.length ) error(s"expected ${arity(constructor)} arguments")
+    val currentEnv = env
+    val ret = loadBranchArgs(params) + compileAst(internalExpr, reg)
+    env = currentEnv
+
+    ret
   }
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
@@ -330,18 +391,19 @@ case class FlechaCompiler(AST: AST) {
   }
 
   //////////////////////////////////// MAMARRACHO AUX FUNCTIONS ///////////////////////////////////////////////
-  def alloc(reg: String, slots: Int)                = s"alloc($reg, $slots)\n"
-  def mov_int(reg: String, tag: Int)                = s"mov_int($reg, $tag)\n"
-  def print_char(reg: String)                       = s"print_char($reg)\n"
-  def print_int(reg: String)                        = s"print($reg)\n"
-  def mov_reg(reg1: String, reg2: String)           = s"mov_reg($reg1, $reg2)\n"
-  def store(reg1: String, index: Int, reg2: String) = s"store($reg1, $index, $reg2)\n"
-  def load(reg1: String, reg2: String, index: Int)  = s"load($reg1, $reg2, $index)\n"
-  def mov_label(reg: String, label: String)         = s"mov_label($reg, $label)\n"
-  def ret()                                         = s"return()\n"
-  def call(label: String)                           = s"call($label)\n"
-  def icall(reg: String)                            = s"icall($reg)\n"
-  def jump(label: String)                           = s"jump($label)\n"
+  def alloc(reg: String, slots: Int)                     = s"alloc($reg, $slots)\n"
+  def mov_int(reg: String, tag: Int)                     = s"mov_int($reg, $tag)\n"
+  def print_char(reg: String)                            = s"print_char($reg)\n"
+  def print_int(reg: String)                             = s"print($reg)\n"
+  def mov_reg(reg1: String, reg2: String)                = s"mov_reg($reg1, $reg2)\n"
+  def store(reg1: String, index: Int, reg2: String)      = s"store($reg1, $index, $reg2)\n"
+  def load(reg1: String, reg2: String, index: Int)       = s"load($reg1, $reg2, $index)\n"
+  def mov_label(reg: String, label: String)              = s"mov_label($reg, $label)\n"
+  def ret()                                              = s"return()\n"
+  def call(label: String)                                = s"call($label)\n"
+  def icall(reg: String)                                 = s"icall($reg)\n"
+  def jump(label: String)                                = s"jump($label)\n"
+  def jump_eq(reg1: String, reg2: String, label: String) = s"jump_eq($reg1, $reg2, $label)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
