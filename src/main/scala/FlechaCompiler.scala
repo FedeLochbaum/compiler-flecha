@@ -247,11 +247,11 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileConstructor(constructorName: String, reg: Int) = {
-    if(tagMap.get(constructorName).isEmpty) { tagMap = tagMap.+((constructorName, newTag)) ; arity = arity.+((constructorName, 0)) }
+    createConstructor(constructorName, 0)
 
     alloc("$" +s"r$reg", 1) +
-      mov_int(temp, getTag(constructorName)) +
-      store("$" +s"r$reg", 0, temp)
+    mov_int(temp, getTag(constructorName)) +
+    store("$" +s"r$reg", 0, temp)
   }
 
   def compileBranch(branch: AST, tagBranch: String, tagEndCase: String) = {
