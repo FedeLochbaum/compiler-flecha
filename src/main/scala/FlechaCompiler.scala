@@ -241,7 +241,7 @@ case class FlechaCompiler(AST: AST) {
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
         case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2")
-        case _                   => error()
+        case _                   => error(s"doesn't compile variable $variableName")
       }
     } else mov_reg(regStr, defRegName)
   }
