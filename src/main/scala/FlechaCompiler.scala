@@ -149,8 +149,8 @@ case class FlechaCompiler(AST: AST) {
       case UnaryWithParenAST(expr)                          => compileAst(expr, reg)
       case LambdaAST(name, externalExp)                     => compileLambda(name, externalExp, reg)
       case UpperIdAST(value)                                => compileConstructor(value, reg)
-      case CaseAST(internalExpr, caseBranchs)               => ""
-      case CaseBranchAST(constructor, params, internalExpr) => ""
+      case CaseAST(internalExpr, caseBranchs)               => compileCase(internalExpr, caseBranchs, reg)
+      case CaseBranchAST(constructor, params, internalExpr) => compileCaseBranch(constructor, params, internalExpr, reg)
       case _                                                => error()
     }
   }
@@ -224,16 +224,25 @@ case class FlechaCompiler(AST: AST) {
     } else mov_reg(regStr, defRegName)
   }
 
-  def compileConstructor(constructorName: String, reg: Int) = {
-    // TODO : ASUMO QUE ACA SIEMPRE EL CONSTRUCTOR VA A SER AISLADO
-      if(tagMap.get(constructorName).isEmpty) {
-        tagMap = tagMap.+((constructorName, newTag))
-        arity = arity.+((constructorName, 0))
-      }
+  def compileCase(internalExpr: AST, caseBranchs: List[AST], reg: Int) = {
+    error("compile case")
+  }
 
-      alloc("$" +s"r$reg", 1) +
-      mov_int(temp, getTag(constructorName)) +
-      store("$" +s"r$reg", 0, temp)
+  def compileCaseBranch(constructor: String, parameters: List[String], parseInternalExpression: AST, reg: Int) = {
+    error("compile case branch")
+  }
+
+  def compileConstructor(constructorName: String, reg: Int) = {
+    error("const aislado")
+//    // TODO : ASUMO QUE ACA SIEMPRE EL CONSTRUCTOR VA A SER AISLADO
+//      if(tagMap.get(constructorName).isEmpty) {
+//        tagMap = tagMap.+((constructorName, newTag))
+//        arity = arity.+((constructorName, 0))
+//      }
+//
+//      alloc("$" +s"r$reg", 1) +
+//      mov_int(temp, getTag(constructorName)) +
+//      store("$" +s"r$reg", 0, temp)
 
   }
 
@@ -260,19 +269,20 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileConstructorApp(constructorName: String, appExprAST: AST, reg: Int) = {
-    val constReg = newReg
-    val argReg = newReg
-
-    //    checkOrUpdateArity(String, appExprAST)
-
-    // TODO: REVISAR, PENSAR COMO RESOLVERLO
-    compileConstructor(constructorName, constReg)
-    compileAst(appExprAST, argReg) +
-    alloc("$" +s"r$reg", 1 + arity(constructorName)) +
-    mov_int(temp, getTag(constructorName)) +
-    store("$" +s"r$reg", 0, temp) +
-    store("$" +s"r$reg", 1, "$" +s"r$constReg") +
-    store("$" +s"r$reg", 2, "$" +s"r$argReg")
+    error("const app")
+//    val constReg = newReg
+//    val argReg = newReg
+//
+//    //    checkOrUpdateArity(String, appExprAST)
+//
+//    // TODO: REVISAR, PENSAR COMO RESOLVERLO
+//    compileConstructor(constructorName, constReg)
+//    compileAst(appExprAST, argReg) +
+//    alloc("$" +s"r$reg", 1 + arity(constructorName)) +
+//    mov_int(temp, getTag(constructorName)) +
+//    store("$" +s"r$reg", 0, temp) +
+//    store("$" +s"r$reg", 1, "$" +s"r$constReg") +
+//    store("$" +s"r$reg", 2, "$" +s"r$argReg")
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
