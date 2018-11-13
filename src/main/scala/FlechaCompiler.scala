@@ -205,9 +205,9 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
+    env = env.+((defName, BEnclosed(reg)))
     val code = compileAst(subExpr, reg)
     val defRegName = "$" + s"G_$defName"
-    env = env.+((defName, BEnclosed(reg)))
 
     code + mov_reg(defRegName, "$" + s"r$reg")
   }
