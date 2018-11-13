@@ -241,8 +241,8 @@ case class FlechaCompiler(AST: AST) {
     atomicOp match {
       case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
       case UpperIdAST(value)                      => compileConstructorApp(value, appExprAST, reg)
-      case AppExprAST(atomic, expr)               => compileAst(appExprAST, newReg) + compileApplication(atomic, expr, newReg)
-      case UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
+      case AppExprAST(_, _) |
+           UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
       case _                                      => error()
     }
   }
