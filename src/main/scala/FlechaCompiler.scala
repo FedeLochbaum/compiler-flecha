@@ -331,20 +331,16 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileConstructorApp(constructorName: String, appExprAST: AST, reg: Int) = {
-    error("const app")
-//    val constReg = newReg
-//    val argReg = newReg
-//
-//    //    checkOrUpdateArity(String, appExprAST)
-//
-//    // TODO: REVISAR, PENSAR COMO RESOLVERLO
-//    compileConstructor(constructorName, constReg)
-//    compileAst(appExprAST, argReg) +
-//    alloc("$" +s"r$reg", 1 + arity(constructorName)) +
-//    mov_int(temp, getTag(constructorName)) +
-//    store("$" +s"r$reg", 0, temp) +
-//    store("$" +s"r$reg", 1, "$" +s"r$constReg") +
-//    store("$" +s"r$reg", 2, "$" +s"r$argReg")
+    val constReg = newReg
+    val argReg = newReg
+
+    compileConstructor(constructorName, constReg)
+    compileAst(appExprAST, argReg) +
+    alloc("$" +s"r$reg", 1 + arity(constructorName)) +
+    mov_int(temp, getTag(constructorName)) +
+    store("$" +s"r$reg", 0, temp) +
+    store("$" +s"r$reg", 1, "$" +s"r$constReg") + // esto es raro, no entinedo como deberia proceder aca
+    store("$" +s"r$reg", 2, "$" +s"r$argReg")
   }
 
   def compileNativeFunctionApp(funcName: String, appExprAST: AST, reg: Int) = {
