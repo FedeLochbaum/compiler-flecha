@@ -254,20 +254,40 @@ case class FlechaCompiler(AST: AST) {
     store("$" +s"r$reg", 0, temp)
   }
 
-  def compileBranch(branch: AST, tagBranch: String, tagEndCase: String) = {
+  def loadConstructorVariable(variable: String, index: Int, reg: Int): String = {
+    env = env.+((variable, BEnclosed(reg)))
+    load("$" + s"r$reg", tval, index + 1)
+  }
+
+  def loadBranchArgs(params: List[String]) = {
+    params.zipWithIndex.map { case (variable, index) => loadConstructorVariable(variable, index, newReg) }.mkString
+  }
+
+  def compileCaseBranch(constructor: String, params: List[String], internalExpr: AST, reg: Int) = {
+    createConstructor(constructor, params.length)
+    if (arity(constructor) != params.length ) error(s"expected ${arity(constructor)} arguments")
+
+    val currentEnv = env
+    val ret = loadBranchArgs(params) + compileAst(internalExpr, reg)
+    env = currentEnv
+
+    ret
+  }
+
+  def compileBranch(branch: AST, tagBranch: String, tagEndCase: String, reg: Int) = {
     s"$tagBranch:\n" +
-    compileAst(branch, newReg) +
+    compileAst(branch, reg) +
     jump(tagEndCase)
   }
 
-  def compileBranchs(caseBranchs: List[AST]) = {
+  def compileBranchs(caseBranchs: List[AST], reg: Int) = {
     val tagEndCase = nextEndCase
     var compiledBranchs: List[String] = List()
 
     val compareBranchs = caseBranchs.map {
       branch =>
         val tagBranch = newBranchName ;
-        val compiledBranch = compileBranch(branch, tagBranch, tagEndCase) ;
+        val compiledBranch = compileBranch(branch, tagBranch, tagEndCase, reg) ;
         compiledBranchs = compiledBranchs ++ List(compiledBranch) ;
 
         mov_int(test, tagOf(branch)) +
@@ -285,26 +305,7 @@ case class FlechaCompiler(AST: AST) {
     compileAst(internalExpr, eReg) +
     mov_reg(tval, "$" + s"r$eReg") +
     load(tag, tval, 0) +
-    compileBranchs(caseBranchs)
-  }
-
-  def loadConstructorVariable(variable: String, index: Int, reg: Int): String = {
-    env = env.+((variable, BEnclosed(reg)))
-    load("$" + s"r$reg", tval, index + 1)
-  }
-
-  def loadBranchArgs(params: List[String]) = {
-    params.zipWithIndex.map { case (variable, index) => loadConstructorVariable(variable, index, newReg) }.mkString
-  }
-
-  def compileCaseBranch(constructor: String, params: List[String], internalExpr: AST, reg: Int) = {
-    createConstructor(constructor, params.length)
-    if (arity(constructor) != params.length ) error(s"expected ${arity(constructor)} arguments")
-    val currentEnv = env
-    val ret = loadBranchArgs(params) + compileAst(internalExpr, reg)
-    env = currentEnv
-
-    ret
+    compileBranchs(caseBranchs, reg)
   }
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
