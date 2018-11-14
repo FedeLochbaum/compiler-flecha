@@ -350,11 +350,13 @@ case class FlechaCompiler(AST: AST) {
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     if(isStructure(atomicOp)) { compileStructure(atomicOp, appExprAST, reg) } else {
-      atomicOp match {
-        case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
-        case AppExprAST(_, _) |
-             UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
-        case _                                      => error()
+      if(isPrimitiveApp(atomicOp)) compilePrimitive
+      else {atomicOp match {
+          case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
+          case AppExprAST(_, _) |
+              UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
+          case _                                      => error()
+        }
       }
     }
   }
@@ -429,6 +431,11 @@ case class FlechaCompiler(AST: AST) {
   def icall(reg: String)                                 = s"icall($reg)\n"
   def jump(label: String)                                = s"jump($label)\n"
   def jump_eq(reg1: String, reg2: String, label: String) = s"jump_eq($reg1, $reg2, $label)\n"
+  def add(reg: String, reg2: String, reg3: String)       = s"add($reg, $reg2, $reg3)\n"
+  def sub(reg: String, reg2: String, reg3: String)       = s"sub($reg, $reg2, $reg3)\n"
+  def mul(reg: String, reg2: String, reg3: String)       = s"mul($reg, $reg2, $reg3)\n"
+  def div(reg: String, reg2: String, reg3: String)       = s"div($reg, $reg2, $reg3)\n"
+  def mod(reg: String, reg2: String, reg3: String)       = s"mod($reg, $reg2, $reg3)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
