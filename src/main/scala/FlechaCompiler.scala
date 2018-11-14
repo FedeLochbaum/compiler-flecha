@@ -103,12 +103,12 @@ case class FlechaCompiler(AST: AST) {
       case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
       case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
       case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
-      case LowerIdAST(value)                                => if(isBinaryOp(value) || isNativeFunction(value)) List() else List(value)
+      case LowerIdAST(value)                                => if(isNativeOp(value) || isNativeFunction(value)) List() else List(value)
       case _                                                => List()
     }).filter( fv => !excluded.contains(fv)).toSet
   }
 
-  def isBinaryOp(value: String) = {
+  def isNativeOp(value: String) = {
     value match {
       case "OR"  | "AND" | "NOT"| "EQ" |
            "NE"  | "GE"  | "LE" | "GT" |
@@ -339,6 +339,39 @@ case class FlechaCompiler(AST: AST) {
     params.zipWithIndex.map { case (_, index) => store("$" +s"r$reg", 1 + index, "$" +s"r${paramsRegs(index)}") }.mkString
   }
 
+  def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
+    operation match {
+      case "UMINUS" => compileMinus(arg1, reg)
+      case "NOT"    => compileNot(arg1, reg)
+    }
+  }
+
+  def compileBinaryOp(operation: String, firstArg: AST, secondArg: AST, reg: Int) = {
+    operation match {
+      case "OR"     => compileOR(firstArg, secondArg, reg)
+      case "AND"    => compileAND(firstArg, secondArg, reg)
+      case "EQ"     => compileEQ(firstArg, secondArg, reg)
+      case "NE"     => compileNE(firstArg, secondArg, reg)
+      case "GE"     => compileGE(firstArg, secondArg, reg)
+      case "LE"     => compileLE(firstArg, secondArg, reg)
+      case "GT"     => compileGT(firstArg, secondArg, reg)
+      case "LT"     => compileLT(firstArg, secondArg, reg)
+      case "ADD"    => compileADD(firstArg, secondArg, reg)
+      case "SUB"    => compileSUB(firstArg, secondArg, reg)
+      case "MUL"    => compileMUL(firstArg, secondArg, reg)
+      case "DIV"    => compileDIV(firstArg, secondArg, reg)
+      case "MOD"    => compileMOD(firstArg, secondArg, reg)
+    }
+  }
+
+  def compilePrimitiveFunction(func: AST, firstArg: AST, reg: Int) = {
+    func match {
+      case UpperIdAST(id)                   => compileUnaryOp(id, firstArg, reg)
+      case AppExprAST(id, secondArg)        => compileBinaryOp(id, firstArg, secondArg, reg)
+      case _                                => error()
+    }
+  }
+
   def isStructure(ast: AST): Boolean = {
     ast match {
       case UpperIdAST(_)           => true
@@ -347,15 +380,23 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def isPrimitiveApp(ast: AST): Boolean = {
+    ast match {
+      case LowerIdAST(id)           => isNativeOp(id)
+      case AppExprAST(atomicOp, _)  => isPrimitiveApp(atomicOp)
+      case _                        => false
+    }
+  }
+
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     if(isStructure(atomicOp)) { compileStructure(atomicOp, appExprAST, reg) } else {
-//      if(isPrimitiveApp(atomicOp)) compilePrimitive
-       {atomicOp match {
-          case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
-          case AppExprAST(_, _) |
-              UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
-          case _                                      => error()
-        }
+      if(isPrimitiveApp(atomicOp)) { compilePrimitiveFunction(atomicOp, appExprAST, reg) } else {
+          atomicOp match {
+            case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
+            case AppExprAST(_, _) |
+                UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
+            case _                                      => error()
+          }
       }
     }
   }
