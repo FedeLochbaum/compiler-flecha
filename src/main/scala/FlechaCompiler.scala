@@ -329,10 +329,9 @@ case class FlechaCompiler(AST: AST) {
     val constructorName = obtainStructureHead(atomicOp)
     val params: List[AST] = obtainStructureArg(atomicOp, List(appExprAST))
     val paramsRegs = params.map(_ => newReg)
-    val constReg = newReg
-    val argReg = newReg
 
-    compileConstructor(constructorName, constReg) +
+    createConstructor(constructorName, params.size)
+
     params.zipWithIndex.map { case (param, index) => compileAst(param, paramsRegs(index)) }.mkString +
     alloc("$" +s"r$reg", 1 + arity(constructorName)) +
     mov_int(temp, getTag(constructorName)) +
@@ -350,8 +349,8 @@ case class FlechaCompiler(AST: AST) {
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     if(isStructure(atomicOp)) { compileStructure(atomicOp, appExprAST, reg) } else {
-      if(isPrimitiveApp(atomicOp)) compilePrimitive
-      else {atomicOp match {
+//      if(isPrimitiveApp(atomicOp)) compilePrimitive
+       {atomicOp match {
           case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
           case AppExprAST(_, _) |
               UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
