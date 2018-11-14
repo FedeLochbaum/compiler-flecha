@@ -68,7 +68,7 @@ case class FlechaCompiler(AST: AST) {
   def intialRegister(ast: AST) = {
     ast match {
       case DefAST(name, expr) =>
-        env = env.+((name, BRegister("$" + s"G_$name"))) // name -> $G_name
+        env = env.+((name, BRegister(s"@$name"))) // name -> $G_name
     }
   }
 
@@ -229,19 +229,19 @@ case class FlechaCompiler(AST: AST) {
   def compileDef(defName: String, subExpr: AST, reg: Int) = {
     env = env.+((defName, BEnclosed(reg)))
     val code = compileAst(subExpr, reg)
-    val defRegName = "$" + s"G_$defName"
+    val defRegName = s"@$defName"
 
     code + mov_reg(defRegName, "$" + s"r$reg")
   }
 
   def compileVariable(variableName: String, reg: Int) = {
-    val defRegName = "$" + s"G_$variableName"
+    val defRegName = s"@$variableName"
     val regStr = "$" + s"r$reg"
 
     if (env.get(variableName).nonEmpty) {
       env(variableName) match {
         case BEnclosed(reg2)     => mov_reg(regStr, "$" + s"r$reg2")
-        case _                   => error(s"doesn't compile variable $variableName")
+        case _                   => mov_reg(regStr, defRegName)
       }
     } else mov_reg(regStr, defRegName)
   }
