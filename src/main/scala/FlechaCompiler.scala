@@ -103,12 +103,12 @@ case class FlechaCompiler(AST: AST) {
       case CaseBranchAST(_, _, internalExpr)                => freeValues(internalExpr, excluded)
       case CaseAST(internalExpr, _)                         => freeValues(internalExpr, excluded)
       case UnaryWithParenAST(expr)                          => freeValues(expr, excluded)
-      case LowerIdAST(value)                                => if(isBinaryOp(value) || isNativeFunction(value)) List() else List(value)
+      case LowerIdAST(value)                                => if(isNativeOp(value) || isNativeFunction(value)) List() else List(value)
       case _                                                => List()
     }).filter( fv => !excluded.contains(fv)).toSet
   }
 
-  def isBinaryOp(value: String) = {
+  def isNativeOp(value: String) = {
     value match {
       case "OR"  | "AND" | "NOT"| "EQ" |
            "NE"  | "GE"  | "LE" | "GT" |
@@ -329,16 +329,89 @@ case class FlechaCompiler(AST: AST) {
     val constructorName = obtainStructureHead(atomicOp)
     val params: List[AST] = obtainStructureArg(atomicOp, List(appExprAST))
     val paramsRegs = params.map(_ => newReg)
-    val constReg = newReg
-    val argReg = newReg
 
-    compileConstructor(constructorName, constReg) +
+    createConstructor(constructorName, params.size)
+
     params.zipWithIndex.map { case (param, index) => compileAst(param, paramsRegs(index)) }.mkString +
     alloc("$" +s"r$reg", 1 + arity(constructorName)) +
     mov_int(temp, getTag(constructorName)) +
     store("$" +s"r$reg", 0, temp) +
     params.zipWithIndex.map { case (_, index) => store("$" +s"r$reg", 1 + index, "$" +s"r${paramsRegs(index)}") }.mkString
   }
+
+  //////////////////////////// NATIVE OPERATIONS /////////////////////
+
+
+  /////////////////////////// UNARY OPERATIONS ///////////////////////
+  def compileMinus(arg1: AST, reg: Int) = {
+    val nReg = newReg
+    val argCode = compileAst(arg1, nReg)
+
+    argCode +
+    compileInt(-1, reg) +
+    mul("$" +s"r$reg", "$" +s"r$reg", "$" +s"r$nReg")
+  }
+  def compileNot(arg1: AST, reg: Int) = {""}
+
+  /////////////////////////// BINARY OPERATIONS //////////////////////
+  def compileOR(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileAND(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileEQ(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileNE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileGE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileGT(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileLT(firstReg: Int, secondReg: Int, reg: Int) = {""}
+
+
+  def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
+    operation match {
+      case "UMINUS" => compileMinus(arg1, reg)
+      case "NOT"    => compileNot(arg1, reg)
+    }
+  }
+
+  def compileBinaryOp(operation: String, firstArg: AST, secondArg: AST, reg: Int) = {
+    val firstArgReg = newReg
+    val secondArgReg = newReg
+
+    compileAst(firstArg, firstArgReg) +
+    compileAst(secondArg, secondArgReg) +
+      (operation match {
+      case "OR"     => compileOR(firstArgReg, secondArgReg, reg)
+      case "AND"    => compileAND(firstArgReg, secondArgReg, reg)
+      case "EQ"     => compileEQ(firstArgReg, secondArgReg, reg)
+      case "NE"     => compileNE(firstArgReg, secondArgReg, reg)
+      case "GE"     => compileGE(firstArgReg, secondArgReg, reg)
+      case "LE"     => compileLE(firstArgReg, secondArgReg, reg)
+      case "GT"     => compileGT(firstArgReg, secondArgReg, reg)
+      case "LT"     => compileLT(firstArgReg, secondArgReg, reg)
+      case "ADD"    => add("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "SUB"    => sub("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "MUL"    => mul("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "DIV"    => div("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "MOD"    => mod("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+    })
+  }
+
+  def isPrimitiveApp(ast: AST): Boolean = {
+    ast match {
+      case LowerIdAST(id)           => isNativeOp(id)
+      case AppExprAST(atomicOp, _)  => isPrimitiveApp(atomicOp)
+      case _                        => false
+    }
+  }
+
+
+  def compilePrimitiveFunction(func: AST, firstArg: AST, reg: Int) :String = {
+    func match {
+      case LowerIdAST(id)                               => compileUnaryOp(id, firstArg, reg)
+      case AppExprAST(LowerIdAST(id), secondArg)        => compileBinaryOp(id, firstArg, secondArg, reg)
+      case _                                            => error()
+    }
+  }
+
+  //////////////////////////// NATIVE OPERATIONS /////////////////////
 
   def isStructure(ast: AST): Boolean = {
     ast match {
@@ -350,11 +423,13 @@ case class FlechaCompiler(AST: AST) {
 
   def compileApplication(atomicOp: AST, appExprAST: AST, reg: Int) :String = {
     if(isStructure(atomicOp)) { compileStructure(atomicOp, appExprAST, reg) } else {
-      atomicOp match {
-        case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
-        case AppExprAST(_, _) |
-             UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
-        case _                                      => error()
+      if(isPrimitiveApp(atomicOp)) { compilePrimitiveFunction(atomicOp, appExprAST, reg) } else {
+          atomicOp match {
+            case LowerIdAST(value)                      => if(isNativeFunction(value)) compileNativeFunctionApp(value, appExprAST, reg) else compileSimpleApp(value, appExprAST, reg)
+            case AppExprAST(_, _) |
+                UnaryWithParenAST(LambdaAST(_, _))     => compileLambdaApp(atomicOp, appExprAST, reg)
+            case _                                      => error()
+          }
       }
     }
   }
@@ -429,6 +504,11 @@ case class FlechaCompiler(AST: AST) {
   def icall(reg: String)                                 = s"icall($reg)\n"
   def jump(label: String)                                = s"jump($label)\n"
   def jump_eq(reg1: String, reg2: String, label: String) = s"jump_eq($reg1, $reg2, $label)\n"
+  def add(reg: String, reg2: String, reg3: String)       = s"add($reg, $reg2, $reg3)\n"
+  def sub(reg: String, reg2: String, reg3: String)       = s"sub($reg, $reg2, $reg3)\n"
+  def mul(reg: String, reg2: String, reg3: String)       = s"mul($reg, $reg2, $reg3)\n"
+  def div(reg: String, reg2: String, reg3: String)       = s"div($reg, $reg2, $reg3)\n"
+  def mod(reg: String, reg2: String, reg3: String)       = s"mod($reg, $reg2, $reg3)\n"
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
