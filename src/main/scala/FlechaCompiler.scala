@@ -339,6 +339,31 @@ case class FlechaCompiler(AST: AST) {
     params.zipWithIndex.map { case (_, index) => store("$" +s"r$reg", 1 + index, "$" +s"r${paramsRegs(index)}") }.mkString
   }
 
+  //////////////////////////// NATIVE OPERATIONS /////////////////////
+
+
+  /////////////////////////// UNARY OPERATIONS ///////////////////////
+  def compileMinus(arg1: AST, reg: Int) = {
+    val nReg = newReg
+    val argCode = compileAst(arg1, nReg)
+
+    argCode +
+    compileInt(-1, reg) +
+    mul("$" +s"r$reg", "$" +s"r$reg", "$" +s"r$nReg")
+  }
+  def compileNot(arg1: AST, reg: Int) = {""}
+
+  /////////////////////////// BINARY OPERATIONS //////////////////////
+  def compileOR(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileAND(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileEQ(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileNE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileGE(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileGT(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileLT(firstReg: Int, secondReg: Int, reg: Int) = {""}
+
+
   def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
     operation match {
       case "UMINUS" => compileMinus(arg1, reg)
@@ -347,37 +372,26 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileBinaryOp(operation: String, firstArg: AST, secondArg: AST, reg: Int) = {
-    operation match {
-      case "OR"     => compileOR(firstArg, secondArg, reg)
-      case "AND"    => compileAND(firstArg, secondArg, reg)
-      case "EQ"     => compileEQ(firstArg, secondArg, reg)
-      case "NE"     => compileNE(firstArg, secondArg, reg)
-      case "GE"     => compileGE(firstArg, secondArg, reg)
-      case "LE"     => compileLE(firstArg, secondArg, reg)
-      case "GT"     => compileGT(firstArg, secondArg, reg)
-      case "LT"     => compileLT(firstArg, secondArg, reg)
-      case "ADD"    => compileADD(firstArg, secondArg, reg)
-      case "SUB"    => compileSUB(firstArg, secondArg, reg)
-      case "MUL"    => compileMUL(firstArg, secondArg, reg)
-      case "DIV"    => compileDIV(firstArg, secondArg, reg)
-      case "MOD"    => compileMOD(firstArg, secondArg, reg)
-    }
-  }
+    val firstArgReg = newReg
+    val secondArgReg = newReg
 
-  def compilePrimitiveFunction(func: AST, firstArg: AST, reg: Int) = {
-    func match {
-      case UpperIdAST(id)                   => compileUnaryOp(id, firstArg, reg)
-      case AppExprAST(id, secondArg)        => compileBinaryOp(id, firstArg, secondArg, reg)
-      case _                                => error()
-    }
-  }
-
-  def isStructure(ast: AST): Boolean = {
-    ast match {
-      case UpperIdAST(_)           => true
-      case AppExprAST(atomicOp, _) => isStructure(atomicOp)
-      case _                       => false
-    }
+    compileAst(firstArg, firstArgReg) +
+    compileAst(secondArg, secondArgReg) +
+      (operation match {
+      case "OR"     => compileOR(firstArgReg, secondArgReg, reg)
+      case "AND"    => compileAND(firstArgReg, secondArgReg, reg)
+      case "EQ"     => compileEQ(firstArgReg, secondArgReg, reg)
+      case "NE"     => compileNE(firstArgReg, secondArgReg, reg)
+      case "GE"     => compileGE(firstArgReg, secondArgReg, reg)
+      case "LE"     => compileLE(firstArgReg, secondArgReg, reg)
+      case "GT"     => compileGT(firstArgReg, secondArgReg, reg)
+      case "LT"     => compileLT(firstArgReg, secondArgReg, reg)
+      case "ADD"    => add("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "SUB"    => sub("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "MUL"    => mul("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "DIV"    => div("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "MOD"    => mod("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+    })
   }
 
   def isPrimitiveApp(ast: AST): Boolean = {
@@ -385,6 +399,25 @@ case class FlechaCompiler(AST: AST) {
       case LowerIdAST(id)           => isNativeOp(id)
       case AppExprAST(atomicOp, _)  => isPrimitiveApp(atomicOp)
       case _                        => false
+    }
+  }
+
+
+  def compilePrimitiveFunction(func: AST, firstArg: AST, reg: Int) :String = {
+    func match {
+      case LowerIdAST(id)                               => compileUnaryOp(id, firstArg, reg)
+      case AppExprAST(LowerIdAST(id), secondArg)        => compileBinaryOp(id, firstArg, secondArg, reg)
+      case _                                            => error()
+    }
+  }
+
+  //////////////////////////// NATIVE OPERATIONS /////////////////////
+
+  def isStructure(ast: AST): Boolean = {
+    ast match {
+      case UpperIdAST(_)           => true
+      case AppExprAST(atomicOp, _) => isStructure(atomicOp)
+      case _                       => false
     }
   }
 
