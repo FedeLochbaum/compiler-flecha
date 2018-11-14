@@ -104,11 +104,11 @@ def printLB  = printList printBool
 def printLN  = printList printNat
 def printLLN = printList (printList printNat)
 
-def length lst = length_ lst '_'
 def length_ lst =
   cond (null lst)
        (\ u -> n0)
        (\ u -> suc (length_ (tail lst) '_'))
+def length lst = length_ lst '_'
 
 def map_ f lst =
   cond (null lst)
