@@ -346,10 +346,13 @@ case class FlechaCompiler(AST: AST) {
   def compileMinus(arg1: AST, reg: Int) = {
     val nReg = newReg
     val argCode = compileAst(arg1, nReg)
+    val t1 = "$" +s"temp1"
 
     argCode +
-    compileInt(-1, reg) +
-    mul("$" +s"r$reg", "$" +s"r$reg", "$" +s"r$nReg")
+    load(temp, "$" +s"r$nReg", 1) +
+    mov_int(t1, -1) +
+    mul(t1, t1, temp) +
+    compileNumber(t1, "$" +s"r$reg")
   }
   def compileNot(arg1: AST, reg: Int) = {""}
 
@@ -371,12 +374,24 @@ case class FlechaCompiler(AST: AST) {
     }
   }
 
+  def compileNumber(value: String, goalReg: String) = {
+      alloc(goalReg, 2) +
+      mov_int(temp, getTag("Int")) +
+      store(goalReg, 0, temp) +
+      store(goalReg, 1, value)
+  }
+
   def compileBinaryOp(operation: String, firstArg: AST, secondArg: AST, reg: Int) = {
     val firstArgReg = newReg
     val secondArgReg = newReg
+    val t1 = "$" +s"temp1"
+    val t2 = "$" +s"temp2"
+    val goal = "$" +s"goal"
 
     compileAst(firstArg, firstArgReg) +
     compileAst(secondArg, secondArgReg) +
+    load(t1, "$" +s"r$firstArgReg", 1) +
+    load(t2, "$" +s"r$secondArgReg", 1) +
       (operation match {
       case "OR"     => compileOR(firstArgReg, secondArgReg, reg)
       case "AND"    => compileAND(firstArgReg, secondArgReg, reg)
@@ -386,11 +401,11 @@ case class FlechaCompiler(AST: AST) {
       case "LE"     => compileLE(firstArgReg, secondArgReg, reg)
       case "GT"     => compileGT(firstArgReg, secondArgReg, reg)
       case "LT"     => compileLT(firstArgReg, secondArgReg, reg)
-      case "ADD"    => add("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
-      case "SUB"    => sub("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
-      case "MUL"    => mul("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
-      case "DIV"    => div("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
-      case "MOD"    => mod("$" +s"r$reg", "$" +s"r$firstArgReg", "$" +s"r$secondArgReg")
+      case "ADD"    => add(goal, t1, t2) + compileNumber(goal, "$" +s"r$reg")
+      case "SUB"    => sub(goal, t1, t2) + compileNumber(goal, "$" +s"r$reg")
+      case "MUL"    => mul(goal, t1, t2) + compileNumber(goal, "$" +s"r$reg")
+      case "DIV"    => div(goal, t1, t2) + compileNumber(goal, "$" +s"r$reg")
+      case "MOD"    => mod(goal, t1, t2) + compileNumber(goal, "$" +s"r$reg")
     })
   }
 
