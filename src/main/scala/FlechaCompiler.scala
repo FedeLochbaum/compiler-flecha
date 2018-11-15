@@ -357,24 +357,20 @@ case class FlechaCompiler(AST: AST) {
 
   def compileNot(arg1: AST, reg: Int) = {
     val nReg = newReg
-    val argCode = compileAst(arg1, nReg)
-
     val falseBranch = newBranchName
     val trueBranch = newBranchName
     val endCase = nextEndCase
-    val t1 = newReg
 
-    argCode +
-    load("$" +s"r$t1", "$" +s"r$nReg", 0) +
+    compileAst(arg1, nReg) +
+    load("$" +s"r$reg", "$" +s"r$nReg", 0) +
     mov_int(test, getTag("True")) +
-    jump_eq("$" +s"$t1", test, falseBranch) +
-    mov_int(test, getTag("False")) +
-    jump_eq("$" +s"$t1", test, trueBranch) +
-      s"$trueBranch:\n" +
-      compileConstructor("True", reg) +
-      jump(endCase) +
+    jump_eq("$" +s"$reg", test, falseBranch) +
+    jump(trueBranch) +
       s"$falseBranch:\n" +
       compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
       jump(endCase) +
       s"$endCase:\n"
   }
