@@ -432,6 +432,22 @@ case class FlechaCompiler(AST: AST) {
       s"$endCase:\n"
   }
 
+  def compileLT(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    jump_lt(firstReg, secondReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
+
   def compileNE(firstReg: String, secondReg: String, reg: Int) = {
     val trueBranch = newBranchName
     val falseBranch = newBranchName
@@ -451,7 +467,6 @@ case class FlechaCompiler(AST: AST) {
   def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileGE(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileGT(firstReg: Int, secondReg: Int, reg: Int) = {""}
-  def compileLT(firstReg: Int, secondReg: Int, reg: Int) = {""}
 
 
   def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
@@ -491,7 +506,7 @@ case class FlechaCompiler(AST: AST) {
         case "GE"    => ""
         case "LE"    => ""
         case "GT"    => ""
-        case "LT"    => ""
+        case "LT"    => compileLT("$" +s"r$t1", "$" +s"r$t2", reg)
       })
   }
 
@@ -640,6 +655,7 @@ case class FlechaCompiler(AST: AST) {
   def icall(reg: String)                                 = s"icall($reg)\n"
   def jump(label: String)                                = s"jump($label)\n"
   def jump_eq(reg1: String, reg2: String, label: String) = s"jump_eq($reg1, $reg2, $label)\n"
+  def jump_lt(reg1: String, reg2: String, label: String) = s"jump_lt($reg1, $reg2, $label)\n"
   def add(reg: String, reg2: String, reg3: String)       = s"add($reg, $reg2, $reg3)\n"
   def sub(reg: String, reg2: String, reg3: String)       = s"sub($reg, $reg2, $reg3)\n"
   def mul(reg: String, reg2: String, reg3: String)       = s"mul($reg, $reg2, $reg3)\n"
