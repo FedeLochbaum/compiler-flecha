@@ -354,10 +354,49 @@ case class FlechaCompiler(AST: AST) {
     mul(t1, t1, temp) +
     compileNumber(t1, "$" +s"r$reg")
   }
-  def compileNot(arg1: AST, reg: Int) = {""}
+
+  def compileNot(arg1: AST, reg: Int) = {
+    val nReg = newReg
+    val argCode = compileAst(arg1, nReg)
+
+    val branch1 = newBranchName
+    val branch2 = newBranchName
+    val endCase = nextEndCase
+
+    argCode +
+    load("$" +s"$reg", "$" +s"$nReg", 0) +
+    mov_int(test, getTag("True")) +
+    jump_eq("$" +s"$reg", test, branch1) +
+    mov_int(test, getTag("False")) +
+    jump_eq("$" +s"$reg", test, branch2) +
+      s"$branch2:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$branch1:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
 
   /////////////////////////// BINARY OPERATIONS //////////////////////
-  def compileOR(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileOR(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    mov_int(test, getTag("True")) +
+    jump_eq(firstReg, test, trueBranch) +
+    jump_eq(secondReg, test, trueBranch) +
+    jump(falseBranch) +
+    s"$trueBranch:\n" +
+    compileConstructor("True", reg) +
+    jump(endCase) +
+    s"$falseBranch:\n" +
+    compileConstructor("False", reg) +
+    jump(endCase) +
+    s"$endCase:\n"
+  }
+
   def compileAND(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileEQ(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileNE(firstReg: Int, secondReg: Int, reg: Int) = {""}
@@ -382,7 +421,21 @@ case class FlechaCompiler(AST: AST) {
   }
 
   def compileBinaryBooleanOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
-    ""
+    val t1 = newReg
+    val t2 = newReg
+
+    load("$" +s"r$t1", "$" +s"r$firstArg", 0) +
+    load("$" +s"r$t2", "$" +s"r$secondArg", 0) +
+      (operation match {
+      case "OR"    => compileOR("$" +s"r$t1", "$" +s"r$t2", reg)
+      case "AND"   => ""
+      case "EQ"    => ""
+      case "NE"    => ""
+      case "GE"    => ""
+      case "LE"    => ""
+      case "GT"    => ""
+      case "LT"    => ""
+    })
   }
 
   def compileBinaryAritmeticOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
