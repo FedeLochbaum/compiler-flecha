@@ -381,31 +381,35 @@ case class FlechaCompiler(AST: AST) {
       store(goalReg, 1, value)
   }
 
-  def compileBinaryOp(operation: String, secondArg: AST, firstArg: AST, reg: Int) = {
-    val firstArgReg = newReg
-    val secondArgReg = newReg
+  def compileBinaryBooleanOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
+    ""
+  }
+
+  def compileBinaryAritmeticOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
     val t1 = newReg
     val t2 = newReg
     val goal = newReg
 
+    load("$" +s"r$t1", "$" +s"r$firstArg", 1) +
+    load("$" +s"r$t2", "$" +s"r$secondArg", 1) +
+      (operation match {
+        case "ADD"    => add("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+        case "SUB"    => sub("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+        case "MUL"    => mul("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+        case "DIV"    => div("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+        case "MOD"    => mod("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+      })
+  }
+
+  def compileBinaryOp(operation: String, secondArg: AST, firstArg: AST, reg: Int) = {
+    val firstArgReg = newReg
+    val secondArgReg = newReg
+
     compileAst(firstArg, firstArgReg) +
     compileAst(secondArg, secondArgReg) +
-    load("$" +s"r$t1", "$" +s"r$firstArgReg", 1) +
-    load("$" +s"r$t2", "$" +s"r$secondArgReg", 1) +
       (operation match {
-      case "OR"     => compileOR(firstArgReg, secondArgReg, reg)
-      case "AND"    => compileAND(firstArgReg, secondArgReg, reg)
-      case "EQ"     => compileEQ(firstArgReg, secondArgReg, reg)
-      case "NE"     => compileNE(firstArgReg, secondArgReg, reg)
-      case "GE"     => compileGE(firstArgReg, secondArgReg, reg)
-      case "LE"     => compileLE(firstArgReg, secondArgReg, reg)
-      case "GT"     => compileGT(firstArgReg, secondArgReg, reg)
-      case "LT"     => compileLT(firstArgReg, secondArgReg, reg)
-      case "ADD"    => add("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
-      case "SUB"    => sub("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
-      case "MUL"    => mul("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
-      case "DIV"    => div("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
-      case "MOD"    => mod("$" +s"r$goal", "$" +s"r$t1", "$" +s"r$t2") + compileNumber("$" +s"r$goal", "$" +s"r$reg")
+      case "OR" | "AND" | "EQ" | "NE" | "GE" | "LE" | "GT" | "LT"     => compileBinaryBooleanOp(operation, firstArgReg, secondArgReg, reg)
+      case "ADD"| "SUB" | "MUL"| "DIV"| "MOD"                         => compileBinaryAritmeticOp(operation, firstArgReg, secondArgReg, reg)
     })
   }
 
