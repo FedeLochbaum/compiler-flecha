@@ -432,22 +432,6 @@ case class FlechaCompiler(AST: AST) {
       s"$endCase:\n"
   }
 
-  def compileLT(firstReg: String, secondReg: String, reg: Int) = {
-    val trueBranch = newBranchName
-    val falseBranch = newBranchName
-    val endCase = nextEndCase
-
-    jump_lt(firstReg, secondReg, trueBranch) +
-      jump(falseBranch) +
-      s"$trueBranch:\n" +
-      compileConstructor("True", reg) +
-      jump(endCase) +
-      s"$falseBranch:\n" +
-      compileConstructor("False", reg) +
-      jump(endCase) +
-      s"$endCase:\n"
-  }
-
   def compileNE(firstReg: String, secondReg: String, reg: Int) = {
     val trueBranch = newBranchName
     val falseBranch = newBranchName
@@ -464,9 +448,40 @@ case class FlechaCompiler(AST: AST) {
       s"$endCase:\n"
   }
 
-  def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
-  def compileGE(firstReg: Int, secondReg: Int, reg: Int) = {""}
-  def compileGT(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileLT(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    jump_lt(firstReg, secondReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
+
+  def compileGT(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    jump_lt(secondReg, firstReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
+
+  def compileLE(firstReg: String, secondReg: String, reg: Int) = {""}
+  def compileGE(firstReg: String, secondReg: String, reg: Int) = {""}
 
 
   def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
@@ -503,9 +518,9 @@ case class FlechaCompiler(AST: AST) {
       (operation match {
         case "EQ"    => compileEQ("$" +s"r$t1", "$" +s"r$t2", reg)
         case "NE"    => compileNE("$" +s"r$t1", "$" +s"r$t2", reg)
-        case "GE"    => ""
-        case "LE"    => ""
-        case "GT"    => ""
+        case "GE"    => compileGE("$" +s"r$t1", "$" +s"r$t2", reg)
+        case "LE"    => compileLE("$" +s"r$t1", "$" +s"r$t2", reg)
+        case "GT"    => compileGT("$" +s"r$t1", "$" +s"r$t2", reg)
         case "LT"    => compileLT("$" +s"r$t1", "$" +s"r$t2", reg)
       })
   }
