@@ -480,8 +480,39 @@ case class FlechaCompiler(AST: AST) {
       s"$endCase:\n"
   }
 
-  def compileLE(firstReg: String, secondReg: String, reg: Int) = {""}
-  def compileGE(firstReg: String, secondReg: String, reg: Int) = {""}
+  def compileLE(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    jump_eq(firstReg, secondReg, trueBranch) +
+      jump_lt(firstReg, secondReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
+
+  def compileGE(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    jump_eq(secondReg, firstReg, trueBranch) +
+    jump_lt(secondReg, firstReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
 
 
   def compileUnaryOp(operation: String, arg1: AST, reg: Int) = {
