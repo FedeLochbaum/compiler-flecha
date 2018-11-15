@@ -359,20 +359,21 @@ case class FlechaCompiler(AST: AST) {
     val nReg = newReg
     val argCode = compileAst(arg1, nReg)
 
-    val branch1 = newBranchName
-    val branch2 = newBranchName
+    val falseBranch = newBranchName
+    val trueBranch = newBranchName
     val endCase = nextEndCase
+    val t1 = newReg
 
     argCode +
-    load("$" +s"$reg", "$" +s"$nReg", 0) +
+    load("$" +s"r$t1", "$" +s"r$nReg", 0) +
     mov_int(test, getTag("True")) +
-    jump_eq("$" +s"$reg", test, branch1) +
+    jump_eq("$" +s"$t1", test, falseBranch) +
     mov_int(test, getTag("False")) +
-    jump_eq("$" +s"$reg", test, branch2) +
-      s"$branch2:\n" +
+    jump_eq("$" +s"$t1", test, trueBranch) +
+      s"$trueBranch:\n" +
       compileConstructor("True", reg) +
       jump(endCase) +
-      s"$branch1:\n" +
+      s"$falseBranch:\n" +
       compileConstructor("False", reg) +
       jump(endCase) +
       s"$endCase:\n"
@@ -415,7 +416,22 @@ case class FlechaCompiler(AST: AST) {
       jump(endCase) +
       s"$endCase:\n"
   }
-  def compileEQ(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileEQ(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+      jump_eq(secondReg, firstReg, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
+
   def compileNE(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileGE(firstReg: Int, secondReg: Int, reg: Int) = {""}
@@ -437,22 +453,38 @@ case class FlechaCompiler(AST: AST) {
       store(goalReg, 1, value)
   }
 
-  def compileBinaryBooleanOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
+  def compileBopAboutBooleans(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
     val t1 = newReg
     val t2 = newReg
 
-    load("$" +s"r$t1", "$" +s"r$firstArg", 0) +
-    load("$" +s"r$t2", "$" +s"r$secondArg", 0) +
+    load("$" +s"r$t1", "$" +s"r$firstArg", 0) + load("$" +s"r$t2", "$" +s"r$secondArg", 0) +
       (operation match {
-      case "OR"    => compileOR("$" +s"r$t1", "$" +s"r$t2", reg)
-      case "AND"   => compileAND("$" +s"r$t1", "$" +s"r$t2", reg)
-      case "EQ"    => ""
-      case "NE"    => ""
-      case "GE"    => ""
-      case "LE"    => ""
-      case "GT"    => ""
-      case "LT"    => ""
-    })
+        case "OR" => compileOR("$" + s"r$t1", "$" + s"r$t2", reg)
+        case "AND" => compileAND("$" + s"r$t1", "$" + s"r$t2", reg)
+      })
+  }
+
+  def compileBopAboutNumbers(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
+    val t1 = newReg
+    val t2 = newReg
+
+    load("$" +s"r$t1", "$" +s"r$firstArg", 1) +
+      load("$" +s"r$t2", "$" +s"r$secondArg", 1) +
+      (operation match {
+        case "EQ"    => compileEQ("$" +s"r$t1", "$" +s"r$t2", reg)
+        case "NE"    => ""
+        case "GE"    => ""
+        case "LE"    => ""
+        case "GT"    => ""
+        case "LT"    => ""
+      })
+  }
+
+  def compileBinaryBooleanOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
+      operation match {
+      case "OR" | "AND"  => compileBopAboutBooleans(operation, firstArg, secondArg, reg)
+      case  _            => compileBopAboutNumbers(operation, firstArg, secondArg, reg)
+    }
   }
 
   def compileBinaryAritmeticOp(operation: String, firstArg: Int, secondArg: Int, reg: Int) = {
