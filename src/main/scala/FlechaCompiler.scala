@@ -397,7 +397,24 @@ case class FlechaCompiler(AST: AST) {
     s"$endCase:\n"
   }
 
-  def compileAND(firstReg: Int, secondReg: Int, reg: Int) = {""}
+  def compileAND(firstReg: String, secondReg: String, reg: Int) = {
+    val trueBranch = newBranchName
+    val falseBranch = newBranchName
+    val endCase = nextEndCase
+
+    mov_int(test, getTag("True")) +
+      jump_eq(firstReg, test, trueBranch) +
+      jump(falseBranch) +
+      s"$trueBranch:\n" +
+      mov_int(test, getTag("False")) +
+      jump_eq(secondReg, test, falseBranch) +
+      compileConstructor("True", reg) +
+      jump(endCase) +
+      s"$falseBranch:\n" +
+      compileConstructor("False", reg) +
+      jump(endCase) +
+      s"$endCase:\n"
+  }
   def compileEQ(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileNE(firstReg: Int, secondReg: Int, reg: Int) = {""}
   def compileLE(firstReg: Int, secondReg: Int, reg: Int) = {""}
@@ -428,7 +445,7 @@ case class FlechaCompiler(AST: AST) {
     load("$" +s"r$t2", "$" +s"r$secondArg", 0) +
       (operation match {
       case "OR"    => compileOR("$" +s"r$t1", "$" +s"r$t2", reg)
-      case "AND"   => ""
+      case "AND"   => compileAND("$" +s"r$t1", "$" +s"r$t2", reg)
       case "EQ"    => ""
       case "NE"    => ""
       case "GE"    => ""
